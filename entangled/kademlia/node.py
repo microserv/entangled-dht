@@ -36,3 +36,13 @@ class Node:
     def updateContacts(self, contacts):
         pass
 
+    def _distance(self, keyOne, keyTwo):
+        """ Calculate the XOR result between two string variables
+        
+        @return: XOR result of two long variables
+        @rtype: long
+        """
+        valKeyOne = long(keyOne.encode('hex'), 16)
+        valKeyTwo = long(keyTwo.encode('hex'), 16)
+        return valKeyOne ^ valKeyTwo
+
