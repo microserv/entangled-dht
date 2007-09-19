@@ -11,7 +11,7 @@ import datastore
 
 class Node:
     def __init__(self, knownNodes=None, dataStore=datastore.DataStore()):
-        self.id = ''
+        self.id = self._generateID()
         self._buckets = []
         self._connection = None
         self._dataStore = dataStore
@@ -45,3 +45,14 @@ class Node:
         valKeyTwo = long(keyTwo.encode('hex'), 16)
         return valKeyOne ^ valKeyTwo
 
+    def store(self, key, value):
+        """ Store the received data in the local hash table
+        
+        @todo: Since the data (value) may be large, passing it around as a buffer
+               (which is the case currently) might not be a good idea... will have
+               to fix this (perhaps use a stream from the Protocol class?)
+               Please comment on the relevant Trac ticket (or open a new one) if you
+               have ideas
+               -Francois
+        """
+        self._dataStore[key] = value

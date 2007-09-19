@@ -11,6 +11,11 @@ class NodeIDTest(unittest.TestCase):
     def setUp(self):
         self.node = kademlia.node.Node()
 
+    def testAutoCreatedID(self):
+        """ Tests if a new node has a valid node ID """
+        self.failUnlessEqual(type(self.node.id), str, 'Node does not have a valid ID')
+        self.failUnlessEqual(len(self.node.id), 20, 'Node ID length is incorrect! Expected 160 bits, got %d bits.' % (len(self.node.id)*8))
+
     def testUniqueness(self):
         """ Tests the uniqueness of the values created by the NodeID generator 
         """
@@ -46,10 +51,27 @@ class NodeIDTest(unittest.TestCase):
 
         self.failIf(distanceOne > distanceTwo, '%s should be closer to the base ip %s than %s' % (ipTestList[0], baseIp, ipTestList[1]))
 
+class NodeDataTest(unittest.TestCase):
+    """ Test case for the Node class's data-related functions """
+    def setUp(self):
+        self.node = kademlia.node.Node()
+        self.cases = (('a', 'hello there\nthis is a test'),
+                     ('b', unicode('jasdklfjklsdj;f2352352ljklzsdlkjkasf\ndsjklafsd')),
+                     ('e', 123),
+                     ('f', [('this', 'is', 1), {'complex': 'data entry'}]),
+                     ('aMuchLongerKeyThanAnyOfThePreviousOnes', 'some data'))
+        
+    def testStore(self):
+        """ Tests if the node can store (and privately retrieve) some data """
+        for key, value in self.cases:
+            self.node.store(key, value)
+        for key, value in self.cases:
+            self.failUnless(key in self.node._dataStore, 'Stored key not found in node\'s DataStore: "%s"' % key)
 
 def suite():
     suite = unittest.TestSuite()
     suite.addTest(unittest.makeSuite(NodeIDTest))
+    suite.addTest(unittest.makeSuite(NodeDataTest))
     return suite
 
 if __name__ == '__main__':
