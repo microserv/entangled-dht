@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<XMI xmlns:UML="http://schema.omg.org/spec/UML/1.3" verified="false" timestamp="2007-09-18T18:10:52" xmi.version="1.2" >
+<XMI xmlns:UML="http://schema.omg.org/spec/UML/1.3" verified="false" timestamp="2007-09-19T14:36:40" xmi.version="1.2" >
  <XMI.header>
   <XMI.documentation>
    <XMI.exporter>umbrello uml modeller http://uml.sf.net</XMI.exporter>
@@ -24,7 +24,8 @@
          <UML:Classifier.feature>
           <UML:Attribute comment="Quasi-unique binary number that identifies this node in the network" isSpecification="false" visibility="public" xmi.id="HTCDRUJRpl4N" name="id" />
           <UML:Attribute isSpecification="false" visibility="private" xmi.id="4k6SOUCwWuJ3" type="7QT8DoQCXWXv" name="_buckets" />
-          <UML:Attribute isSpecification="false" visibility="private" xmi.id="GYWo3nRWdttU" type="7GHDWr88ADzp" name="self._connection" />
+          <UML:Attribute isSpecification="false" visibility="private" xmi.id="GYWo3nRWdttU" type="7GHDWr88ADzp" name="_connection" />
+          <UML:Attribute isSpecification="false" visibility="private" xmi.id="3VNMHtAySJOJ" type="NbT6Jwpyf3r2" name="_dataStore" />
           <UML:Operation stereotype="constructor" isSpecification="false" isLeaf="false" visibility="public" xmi.id="mMhORi6Lkhr2" isRoot="false" isAbstract="false" isQuery="false" name="__init__" >
            <UML:BehavioralFeature.parameter>
             <UML:Parameter isSpecification="false" visibility="private" xmi.id="J1RNpdHd2vQ2" value="None" type="7QT8DoQCXWXv" name="knownNodes" />
@@ -127,13 +128,13 @@ A Kademlia node organizes other nodes known to it (its contacts) in buckets (cal
         </UML:Class>
         <UML:Class isSpecification="false" isLeaf="false" visibility="public" namespace="DpDSnWEAIkYk" xmi.id="NbT6Jwpyf3r2" isRoot="false" isAbstract="false" name="DataStore" >
          <UML:Classifier.feature>
-          <UML:Operation isSpecification="false" isLeaf="false" visibility="public" xmi.id="G4NSul3NpKHd" isRoot="false" isAbstract="false" isQuery="false" name="addItem" >
+          <UML:Operation isSpecification="false" isLeaf="false" visibility="public" xmi.id="G4NSul3NpKHd" isRoot="false" isAbstract="false" isQuery="false" name="__setitem__" >
            <UML:BehavioralFeature.parameter>
             <UML:Parameter isSpecification="false" visibility="private" xmi.id="MGc0g11vkHlp" value="" type="F0BvEIsmGaS6" name="key" />
             <UML:Parameter isSpecification="false" visibility="private" xmi.id="qRh2nycocdnV" value="" type="F0BvEIsmGaS6" name="data" />
            </UML:BehavioralFeature.parameter>
           </UML:Operation>
-          <UML:Operation isSpecification="false" isLeaf="false" visibility="public" xmi.id="FBMe15MRUZ88" isRoot="false" isAbstract="false" isQuery="false" name="getItem" >
+          <UML:Operation isSpecification="false" isLeaf="false" visibility="public" xmi.id="FBMe15MRUZ88" isRoot="false" isAbstract="false" isQuery="false" name="__getitem__" >
            <UML:BehavioralFeature.parameter>
             <UML:Parameter isSpecification="false" visibility="private" xmi.id="qVAZtUrpTWdy" value="" type="F0BvEIsmGaS6" name="key" />
            </UML:BehavioralFeature.parameter>
@@ -188,20 +189,20 @@ A Kademlia node organizes other nodes known to it (its contacts) in buckets (cal
       <diagrams>
        <diagram snapgrid="0" showattsig="1" fillcolor="#ffffc0" linewidth="0" zoom="100" showgrid="0" showopsig="1" usefillcolor="1" snapx="10" canvaswidth="1272" snapy="10" showatts="1" xmi.id="mOoYOUXuSxyI" documentation="" type="1" showops="1" showpackage="0" name="Class diagram" localid="" showstereotype="0" showscope="1" snapcsgrid="0" font="Sans,10,-1,5,50,0,0,0,0,0" linecolor="#ff0000" canvasheight="1063" >
         <widgets>
-         <classwidget usesdiagramfillcolor="0" width="249" showattsigs="601" x="153" fillcolor="#ffffc0" y="626" showopsigs="601" linewidth="none" height="216" usefillcolor="1" showpubliconly="0" showattributes="1" isinstance="0" xmi.id="2LUfambgQJs8" showoperations="1" showpackage="0" showscope="1" usesdiagramusefillcolor="0" font="Sans,10,-1,5,75,0,0,0,0,0" linecolor="#ff0000" />
+         <classwidget usesdiagramfillcolor="0" width="249" showattsigs="601" x="153" fillcolor="#ffffc0" y="626" showopsigs="601" linewidth="none" height="234" usefillcolor="1" showpubliconly="0" showattributes="1" isinstance="0" xmi.id="2LUfambgQJs8" showoperations="1" showpackage="0" showscope="1" usesdiagramusefillcolor="0" font="Sans,10,-1,5,75,0,0,0,0,0" linecolor="#ff0000" />
          <classwidget usesdiagramfillcolor="0" width="227" showattsigs="601" x="451" fillcolor="#ffffc0" y="671" showopsigs="601" linewidth="none" height="90" usefillcolor="1" showpubliconly="0" showattributes="1" isinstance="0" xmi.id="jdBZBejROQK7" showoperations="1" showpackage="0" showscope="1" usesdiagramusefillcolor="0" font="Sans,10,-1,5,75,0,0,0,0,0" linecolor="#ff0000" />
          <classwidget usesdiagramfillcolor="1" width="188" showattsigs="601" x="182" fillcolor="none" y="371" showopsigs="601" linewidth="none" height="117" usefillcolor="1" showpubliconly="0" showattributes="1" isinstance="0" xmi.id="7GHDWr88ADzp" showoperations="1" showpackage="0" showscope="1" usesdiagramusefillcolor="1" font="Sans,10,-1,5,75,0,0,0,0,0" linecolor="none" />
          <classwidget usesdiagramfillcolor="1" width="311" showattsigs="601" x="736" fillcolor="none" y="662" showopsigs="601" linewidth="none" height="90" usefillcolor="1" showpubliconly="0" showattributes="1" isinstance="0" xmi.id="GEZ8qdeWfnMw" showoperations="1" showpackage="0" showscope="1" usesdiagramusefillcolor="1" font="Sans,10,-1,5,75,0,0,0,0,0" linecolor="none" />
-         <packagewidget usesdiagramfillcolor="1" width="70" x="241" fillcolor="none" y="14" linewidth="none" height="46" usefillcolor="1" isinstance="0" xmi.id="7meKJjex8e6q" usesdiagramusefillcolor="1" font="Sans,10,-1,5,75,0,0,0,0,0" linecolor="none" />
-         <packagewidget usesdiagramfillcolor="1" width="70" x="241" fillcolor="none" y="89" linewidth="none" height="46" usefillcolor="1" isinstance="0" xmi.id="n0aQFZaDttWL" usesdiagramusefillcolor="1" font="Sans,10,-1,5,75,0,0,0,0,0" linecolor="none" />
-         <packagewidget usesdiagramfillcolor="1" width="70" x="241" fillcolor="none" y="166" linewidth="none" height="46" usefillcolor="1" isinstance="0" xmi.id="9amvxNu37WNQ" usesdiagramusefillcolor="1" font="Sans,10,-1,5,75,0,0,0,0,0" linecolor="none" />
+         <packagewidget usesdiagramfillcolor="1" width="70" x="241" fillcolor="none" y="14" linewidth="none" height="46" usefillcolor="1" isinstance="0" xmi.id="7meKJjex8e6q" usesdiagramusefillcolor="1" font="Sans,10,-1,5,75,1,0,0,0,0" linecolor="none" />
+         <packagewidget usesdiagramfillcolor="1" width="70" x="241" fillcolor="none" y="89" linewidth="none" height="46" usefillcolor="1" isinstance="0" xmi.id="n0aQFZaDttWL" usesdiagramusefillcolor="1" font="Sans,10,-1,5,75,1,0,0,0,0" linecolor="none" />
+         <packagewidget usesdiagramfillcolor="1" width="70" x="241" fillcolor="none" y="166" linewidth="none" height="46" usefillcolor="1" isinstance="0" xmi.id="9amvxNu37WNQ" usesdiagramusefillcolor="1" font="Sans,10,-1,5,75,1,0,0,0,0" linecolor="none" />
          <classwidget usesdiagramfillcolor="1" width="144" showattsigs="601" x="204" fillcolor="none" y="250" showopsigs="601" linewidth="none" height="36" usefillcolor="1" showpubliconly="0" showattributes="1" isinstance="0" xmi.id="E1MMdSDOTnog" showoperations="1" showpackage="0" showscope="1" usesdiagramusefillcolor="1" font="Sans,10,-1,5,75,0,0,0,0,0" linecolor="none" />
         </widgets>
         <messages/>
         <associations>
          <assocwidget totalcounta="2" indexa="1" totalcountb="2" indexb="1" linewidth="none" widgetbid="jdBZBejROQK7" widgetaid="2LUfambgQJs8" xmi.id="yUJ3aHr9Y0ja" linecolor="none" >
           <linepath>
-           <startpoint startx="402" starty="734" />
+           <startpoint startx="402" starty="743" />
            <endpoint endx="451" endy="716" />
           </linepath>
          </assocwidget>
@@ -210,7 +211,7 @@ A Kademlia node organizes other nodes known to it (its contacts) in buckets (cal
            <startpoint startx="277" starty="626" />
            <endpoint endx="276" endy="488" />
           </linepath>
-          <floatingtext usesdiagramfillcolor="1" width="123" x="291" fillcolor="none" y="497" linewidth="none" posttext="" role="710" height="22" usefillcolor="1" pretext="+" isinstance="0" xmi.id="YMD97ZQGAtUe" showstereotype="1" text="self._connection" usesdiagramusefillcolor="1" font="Sans,10,-1,5,50,0,0,0,0,0" linecolor="none" />
+          <floatingtext usesdiagramfillcolor="1" width="123" x="291" fillcolor="none" y="497" linewidth="none" posttext="" role="710" height="22" usefillcolor="1" pretext="+" isinstance="0" xmi.id="1vaAkt49CLVK" showstereotype="1" text="self._connection" usesdiagramusefillcolor="1" font="Sans,10,-1,5,50,0,0,0,0,0" linecolor="none" />
          </assocwidget>
          <assocwidget totalcounta="2" indexa="1" totalcountb="2" indexb="1" linewidth="none" widgetbid="GEZ8qdeWfnMw" widgetaid="jdBZBejROQK7" xmi.id="mdQId7radcRG" linecolor="none" >
           <linepath>
@@ -301,7 +302,7 @@ This is repeated until no node in the returned sets is closer than the closest n
         </messages>
         <associations/>
        </diagram>
-       <diagram snapgrid="0" showattsig="1" fillcolor="#ffffc0" linewidth="0" zoom="100" showgrid="0" showopsig="1" usefillcolor="1" snapx="10" canvaswidth="2260" snapy="10" showatts="1" xmi.id="B5JD3Bq06iQv" documentation="" type="3" showops="1" showpackage="0" name="Sequence diagram: FIND_NODE" localid="ZKVfSYRDmhX0" showstereotype="0" showscope="1" snapcsgrid="0" font="Sans,10,-1,5,50,0,0,0,0,0" linecolor="#ff0000" canvasheight="1047" >
+       <diagram snapgrid="0" showattsig="1" fillcolor="#ffffc0" linewidth="0" zoom="100" showgrid="0" showopsig="1" usefillcolor="1" snapx="10" canvaswidth="2260" snapy="10" showatts="1" xmi.id="B5JD3Bq06iQv" documentation="" type="3" showops="1" showpackage="0" name="Sequence diagram: FIND_NODE" localid="ZKVfSYRDmhX0" showstereotype="0" showscope="1" snapcsgrid="0" font="Sans,10,-1,5,50,0,0,0,0,0" linecolor="#ff0000" canvasheight="1063" >
         <widgets>
          <objectwidget usesdiagramfillcolor="0" width="121" x="576" fillcolor="#ffffc0" y="48" instancename="localNode" linewidth="none" height="28" usefillcolor="1" isinstance="0" xmi.id="2LUfambgQJs8" decon="0" localid="Hj16xOcW8scX" multipleinstance="0" drawasactor="0" showstereotype="1" usesdiagramusefillcolor="1" font="Sans,10,-1,5,50,0,1,0,0,0" linecolor="#ff0000" />
          <objectwidget usesdiagramfillcolor="0" width="132" x="805" fillcolor="#ffffc0" y="48" instancename="localRPC" linewidth="none" height="28" usefillcolor="1" isinstance="0" xmi.id="7GHDWr88ADzp" decon="0" localid="s2nzPx2j85uw" multipleinstance="0" drawasactor="0" usesdiagramusefillcolor="1" font="Sans,10,-1,5,50,0,1,0,0,0" linecolor="#ff0000" />
@@ -353,7 +354,7 @@ Also, the 2 nodes did not know about each other before the RPC operation." usesd
         </messages>
         <associations/>
        </diagram>
-       <diagram snapgrid="0" showattsig="1" fillcolor="#ffffc0" linewidth="0" zoom="100" showgrid="0" showopsig="1" usefillcolor="1" snapx="10" canvaswidth="1716" snapy="10" showatts="1" xmi.id="sx1Bd4fsczoQ" documentation="" type="3" showops="1" showpackage="0" name="Sequence diagram: PING" localid="K8yKdJgVMSGM" showstereotype="0" showscope="1" snapcsgrid="0" font="Sans,10,-1,5,50,0,0,0,0,0" linecolor="#ff0000" canvasheight="1047" >
+       <diagram snapgrid="0" showattsig="1" fillcolor="#ffffc0" linewidth="0" zoom="100" showgrid="0" showopsig="1" usefillcolor="1" snapx="10" canvaswidth="1716" snapy="10" showatts="1" xmi.id="sx1Bd4fsczoQ" documentation="" type="3" showops="1" showpackage="0" name="Sequence diagram: PING" localid="K8yKdJgVMSGM" showstereotype="0" showscope="1" snapcsgrid="0" font="Sans,10,-1,5,50,0,0,0,0,0" linecolor="#ff0000" canvasheight="1063" >
         <widgets>
          <objectwidget usesdiagramfillcolor="0" width="121" x="399" fillcolor="#ffffc0" y="48" instancename="localNode" linewidth="none" height="28" usefillcolor="1" isinstance="0" xmi.id="2LUfambgQJs8" decon="0" localid="HhFkMlKI9V4y" multipleinstance="0" drawasactor="0" usesdiagramusefillcolor="1" font="Sans,10,-1,5,50,0,1,0,0,0" linecolor="#ff0000" />
          <objectwidget usesdiagramfillcolor="0" width="132" x="635" fillcolor="#ffffc0" y="48" instancename="localRPC" linewidth="none" height="28" usefillcolor="1" isinstance="0" xmi.id="7GHDWr88ADzp" decon="0" localid="QPIIMKSxM7px" multipleinstance="0" drawasactor="0" showstereotype="1" usesdiagramusefillcolor="1" font="Sans,10,-1,5,50,0,1,0,0,0" linecolor="#ff0000" />
@@ -416,7 +417,7 @@ A reasonable default (maybe sqlite?) should be provided." usesdiagramusefillcolo
           <floatingtext usesdiagramfillcolor="1" width="185" x="898" fillcolor="none" y="258" linewidth="none" posttext="" role="704" height="22" usefillcolor="1" pretext="" isinstance="0" xmi.id="kvjFNgYfUVHL" text="3: store(key : str, data : str)" usesdiagramusefillcolor="1" font="Sans,10,-1,5,50,0,0,0,0,0" linecolor="none" />
          </messagewidget>
          <messagewidget usesdiagramfillcolor="1" width="446" x="1093" fillcolor="none" y="291" operation="G4NSul3NpKHd" linewidth="none" widgetbid="4JFW6sKTEU7X" height="32" usefillcolor="1" seqnum="4" textid="WVTsVXvkV2Ht" widgetaid="ca6H3V9v1mty" isinstance="0" xmi.id="274AW5Y4bWN1" sequencemessagetype="1000" showstereotype="1" usesdiagramusefillcolor="1" font="Sans,10,-1,5,50,0,0,0,0,0" linecolor="none" >
-          <floatingtext usesdiagramfillcolor="1" width="205" x="1106" fillcolor="none" y="269" linewidth="none" posttext="" role="704" height="22" usefillcolor="1" pretext="" isinstance="0" xmi.id="WVTsVXvkV2Ht" showstereotype="1" text="4: addItem(key : str, data : str)" usesdiagramusefillcolor="1" font="Sans,10,-1,5,50,0,0,0,0,0" linecolor="none" />
+          <floatingtext usesdiagramfillcolor="1" width="225" x="1106" fillcolor="none" y="269" linewidth="none" posttext="" role="704" height="22" usefillcolor="1" pretext="" isinstance="0" xmi.id="WVTsVXvkV2Ht" showstereotype="1" text="4: __setitem__(key : str, data : str)" usesdiagramusefillcolor="1" font="Sans,10,-1,5,50,0,0,0,0,0" linecolor="none" />
          </messagewidget>
          <messagewidget usesdiagramfillcolor="1" width="317" x="575" fillcolor="none" y="374" operation="udp transmit" linewidth="none" widgetbid="sYfzxyk3Klro" height="8" usefillcolor="1" seqnum="5" textid="gJHXLlVqUI0O" widgetaid="qLehQunaJmcI" isinstance="0" xmi.id="SfhS3vror5uE" sequencemessagetype="1001" showstereotype="1" usesdiagramusefillcolor="1" font="Sans,10,-1,5,50,0,0,0,0,0" linecolor="none" >
           <floatingtext usesdiagramfillcolor="1" width="106" x="775" fillcolor="none" y="352" linewidth="none" posttext="" role="704" height="22" usefillcolor="1" pretext="" isinstance="0" xmi.id="gJHXLlVqUI0O" showstereotype="1" text="5: udp transmit" usesdiagramusefillcolor="1" font="Sans,10,-1,5,50,0,0,0,0,0" linecolor="none" />
@@ -436,7 +437,7 @@ A reasonable default (maybe sqlite?) should be provided." usesdiagramusefillcolo
         </messages>
         <associations/>
        </diagram>
-       <diagram snapgrid="0" showattsig="1" fillcolor="#ffffc0" linewidth="0" zoom="100" showgrid="0" showopsig="1" usefillcolor="1" snapx="10" canvaswidth="1753" snapy="10" showatts="1" xmi.id="wEPAa9wuw8md" documentation="" type="3" showops="1" showpackage="0" name="Sequence diagram: FIND_VALUE" localid="V35eShA1Uqfr" showstereotype="0" showscope="1" snapcsgrid="0" font="Sans,10,-1,5,50,0,0,0,0,0" linecolor="#ff0000" canvasheight="1047" >
+       <diagram snapgrid="0" showattsig="1" fillcolor="#ffffc0" linewidth="0" zoom="100" showgrid="0" showopsig="1" usefillcolor="1" snapx="10" canvaswidth="1753" snapy="10" showatts="1" xmi.id="wEPAa9wuw8md" documentation="" type="3" showops="1" showpackage="0" name="Sequence diagram: FIND_VALUE" localid="V35eShA1Uqfr" showstereotype="0" showscope="1" snapcsgrid="0" font="Sans,10,-1,5,50,0,0,0,0,0" linecolor="#ff0000" canvasheight="1063" >
         <widgets>
          <objectwidget usesdiagramfillcolor="0" width="217" x="0" fillcolor="#ffffc0" y="48" instancename="localNode._buckets[n]" linewidth="none" height="28" usefillcolor="1" isinstance="0" xmi.id="jdBZBejROQK7" decon="0" localid="jkRfSyRQbYav" multipleinstance="0" drawasactor="0" usesdiagramusefillcolor="1" font="Sans,10,-1,5,50,0,1,0,0,0" linecolor="#ff0000" />
          <objectwidget usesdiagramfillcolor="0" width="121" x="271" fillcolor="#ffffc0" y="48" instancename="localNode" linewidth="none" height="28" usefillcolor="1" isinstance="0" xmi.id="2LUfambgQJs8" decon="0" localid="E8OOjXIdROQ5" multipleinstance="0" drawasactor="0" usesdiagramusefillcolor="1" font="Sans,10,-1,5,50,0,1,0,0,0" linecolor="#ff0000" />
@@ -464,7 +465,7 @@ This should be easy to use and flexible, and thus this mechanism may change dras
           <floatingtext usesdiagramfillcolor="1" width="147" x="923" fillcolor="none" y="255" linewidth="none" posttext="" role="704" height="22" usefillcolor="1" pretext="" isinstance="0" xmi.id="PsliQREjfHN2" showstereotype="1" text="5: findValue(key : str)" usesdiagramusefillcolor="1" font="Sans,10,-1,5,50,0,0,0,0,0" linecolor="none" />
          </messagewidget>
          <messagewidget usesdiagramfillcolor="1" width="530" x="1136" fillcolor="none" y="294" operation="FBMe15MRUZ88" linewidth="none" widgetbid="JPnBDdXXhfKC" height="32" usefillcolor="1" seqnum="6" textid="r8DLhJTXpd5g" widgetaid="M6ApXub53AK7" isinstance="0" xmi.id="PdADzaTClnom" sequencemessagetype="1000" usesdiagramusefillcolor="1" font="Sans,10,-1,5,50,0,0,0,0,0" linecolor="none" >
-          <floatingtext usesdiagramfillcolor="1" width="136" x="1154" fillcolor="none" y="272" linewidth="none" posttext="" role="704" height="22" usefillcolor="1" pretext="" isinstance="0" xmi.id="r8DLhJTXpd5g" showstereotype="1" text="6: getItem(key : str)" usesdiagramusefillcolor="1" font="Sans,10,-1,5,50,0,0,0,0,0" linecolor="none" />
+          <floatingtext usesdiagramfillcolor="1" width="160" x="1154" fillcolor="none" y="272" linewidth="none" posttext="" role="704" height="22" usefillcolor="1" pretext="" isinstance="0" xmi.id="r8DLhJTXpd5g" showstereotype="1" text="6: __getitem__(key : str)" usesdiagramusefillcolor="1" font="Sans,10,-1,5,50,0,0,0,0,0" linecolor="none" />
          </messagewidget>
          <messagewidget usesdiagramfillcolor="1" width="239" x="905" fillcolor="none" y="170" operation="gECq6SAhgAnc" linewidth="none" widgetbid="M6ApXub53AK7" height="69" usefillcolor="1" seqnum="3" textid="qxTXGv33W8kc" widgetaid="PNK2tWQt2QLu" isinstance="0" xmi.id="kf2jFTtzHhl8" sequencemessagetype="1000" showstereotype="1" usesdiagramusefillcolor="1" font="Sans,10,-1,5,50,0,0,0,0,0" linecolor="none" >
           <floatingtext usesdiagramfillcolor="1" width="223" x="910" fillcolor="none" y="148" linewidth="none" posttext="" role="704" height="22" usefillcolor="1" pretext="" isinstance="0" xmi.id="qxTXGv33W8kc" text="3: updateContacts(contacts : list)" usesdiagramusefillcolor="1" font="Sans,10,-1,5,50,0,0,0,0,0" linecolor="none" />
@@ -533,7 +534,7 @@ This should be easy to use and flexible, and thus this mechanism may change dras
   </UML:Model>
  </XMI.content>
  <XMI.extensions xmi.extender="umbrello" >
-  <docsettings viewid="1RMnJboeiuI0" documentation="" uniqueid="XlnKDAyShMTY" />
+  <docsettings viewid="wqqWcEQ7o7RL" documentation="" uniqueid="EOHJVcLM8LcP" />
   <listview>
    <listitem open="1" type="800" label="Views" >
     <listitem open="1" type="801" id="Logical View" >
@@ -568,6 +569,7 @@ This should be easy to use and flexible, and thus this mechanism may change dras
        <listitem open="1" type="814" id="HTCDRUJRpl4N" />
        <listitem open="0" type="814" id="4k6SOUCwWuJ3" />
        <listitem open="0" type="814" id="GYWo3nRWdttU" />
+       <listitem open="0" type="814" id="3VNMHtAySJOJ" />
        <listitem open="0" type="815" id="mMhORi6Lkhr2" />
        <listitem open="1" type="815" id="knf0YBkncu03" />
        <listitem open="1" type="815" id="C6JfG9zXykip" />

@@ -7,6 +7,7 @@
 
 import UserDict
 import sqlite3
+import cPickle as pickle
 
 class DataStore(UserDict.DictMixin):
     """ Future interface for classes implementing physical storage for the Kademlia DHT;
@@ -24,11 +25,13 @@ class DataStore(UserDict.DictMixin):
     
     def __getitem__(self, key):
         try:
-            value = self._cursor.execute('select value from data where key=?', key).fetchone()[0]
+            self._cursor.execute("select value from data where key=:reqKey", {'reqKey': key})
+            row = self._cursor.fetchone()
+            value = str(row[0])
         except TypeError:
             raise KeyError, key
         else:
-            return value
+            return pickle.loads(value)
         
     def __setitem__(self, key, value):
-        self._cursor.execute('insert into data(key, value) values (?, ?)', (key, value))
+        self._cursor.execute('insert into data(key, value) values (?, ?)', (key, buffer(pickle.dumps(value, pickle.HIGHEST_PROTOCOL))))

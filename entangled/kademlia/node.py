@@ -7,11 +7,14 @@
 
 import hashlib, random
 
+import datastore
+
 class Node:
-    def __init__(self, knownNodes=None):
+    def __init__(self, knownNodes=None, dataStore=datastore.DataStore()):
         self.id = ''
         self._buckets = []
         self._connection = None
+        self._dataStore = dataStore
         
     def _generateID(self):
         """ Generates a 160-bit pseudo-random identifier
