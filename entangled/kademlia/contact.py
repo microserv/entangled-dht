@@ -6,7 +6,8 @@
 # may be created by processing this file with epydoc: http://epydoc.sf.net
 
 class Contact:
-    def __init__(self, id, ipAddress, udpPort):
+    def __init__(self, id, ipAddress, udpPort, firstComm):
         self.id = id
         self.address = ipAddress
         self.port = udpPort
+        self.commTime = firstComm
