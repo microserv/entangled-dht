@@ -13,14 +13,12 @@ class NodeIDTest(unittest.TestCase):
 
     def testUniqueness(self):
         """ Tests the uniqueness of the values created by the NodeID generator 
-        
-        @note: This test may become obsolete if the id generator's algorithm changes
         """
         generatedIDs = []
-        for i in range(20):
+        for i in range(100):
             newID = self.node._generateID()
             # ugly uniqueness test
-            self.failIf(newID in generatedIDs, 'Generated ID not unique!')
+            self.failIf(newID in generatedIDs, 'Generated ID #%d not unique!' % (i+1))
             generatedIDs.append(newID)
     
     def testKeyLength(self):

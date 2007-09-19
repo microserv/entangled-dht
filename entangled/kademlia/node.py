@@ -19,15 +19,11 @@ class Node:
     def _generateID(self):
         """ Generates a 160-bit pseudo-random identifier
         
-        @todo: this code may have to be replaced with the hashing function
-               defined by the Chord protocol, as node ID's need to be
-               uniformly distributed
-       
         @return: A globally unique 160-bit pseudo-random identifier
         @rtype: str
         """
         hash = hashlib.sha1()
-        hash.update(str(random.getrandbits(255)))
+        hash.update(str(random.getrandbits(255)))  
         return hash.digest()
 
     def _lookupNode(self, key):
