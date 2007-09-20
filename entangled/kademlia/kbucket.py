@@ -18,6 +18,9 @@ class KBucket:
         """ Add contact to _contact list in the right order.
 
         @note: Will need to fix up when protocol up and running
+        
+        @param contact: The contact to add
+        @type contact: kademlia.contact.Contact
 
         @return: True if contact added otherwise return false 
         @rtype: bool
@@ -50,6 +53,9 @@ class KBucket:
 
     def getContacts(self, count):
         """ Returns a list containing up to the first count number of contacts
+        
+        @param count: The amount of contacts to return
+        @type count: int
         
         @return: Return up to the first count number of contacts in a list/tuple
                 If no contacts are present a null-list is returned
