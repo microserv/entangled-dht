@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 #
-# License: To be determined
+# This library is free software, distributed under the terms of
+# the GNU Lesser General Public License Version 3, or any later version.
+# See the COPYING file included in this archive
 #
 # The docstrings in this module contain epytext markup; API documentation
 # may be created by processing this file with epydoc: http://epydoc.sf.net
