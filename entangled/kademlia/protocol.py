@@ -10,10 +10,12 @@
 from twisted.internet.protocol import DatagramProtocol
 from twisted.internet import reactor
 
+import encoding
+
 class KademliaProtocol(DatagramProtocol):
     """ Implements all network-related functions of a Kademlia node """
-    def __init__(self):
-        pass
+    def __init__(self, msgFormat=None, msgEncoding=encoding.Bencode()):
+        self.messaging = rpcFormat
     
     def ping(self, contact):
         """ Sends a PING request to the specified contact
@@ -47,3 +49,5 @@ class KademliaProtocol(DatagramProtocol):
     
     def datagramReceived(self, datagram, address):
         self.transport.write(datagram, address)
+
+    
