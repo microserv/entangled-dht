@@ -7,12 +7,11 @@
 # The docstrings in this module contain epytext markup; API documentation
 # may be created by processing this file with epydoc: http://epydoc.sf.net
 
-import kademlia.constants
-
-# remove when protocol in place
-pingResult = False
+import constants
 
 class KBucket:
+    """ Description - later
+    """
     def __init__(self):
         self._contacts = list()
 
@@ -23,46 +22,37 @@ class KBucket:
         
         @param contact: The contact to add
         @type contact: kademlia.contact.Contact
-
-        @return: True if contact added otherwise return false 
-        @rtype: bool
         """
+
+        #check to see if contact in bucket already
+        for tmpContact in self._contacts:
+            if tmpContact.id == contact.id:        # Use ids - better way?
+                self._contacts.remove(tmpContact)
+                self._contacts.append(contact)
+                return
 
         # check to see if there is space to add new contact
         # if there is - add to the bottom
         if len(self._contacts) < kademlia.constants.k:
             self._contacts.append(contact)
         else:
-            # check to see if the first contact in dict is still alive
-            # replace this function when needed
-            result = rpc_ping(self._contacts[0])
+            raise BucketFull("No space in bucket to insert contact")
 
-            if not result:
-                # first contact did not respond - remove and add new contact
-                self._contacts.remove(self._contacts[0])
-                self._contacts.append(contact)
-            else:
-                # first contact responded, now add to bottom
-                tmpContact = self._contacts[0]
-                self._contacts.remove(tmpContact)
-                self._contacts.append(tmpContact)
-                
-                # No space
-                return False
-
-        # everything went smoothly
-        return True
 
     def getContacts(self, count):
         """ Returns a list containing up to the first count number of contacts
         
         @param count: The amount of contacts to return
         @type count: int
-        
-        @return: Return up to the first count number of contacts in a list/tuple
+        @raise IndexError: If the number of requested contacts is too large
+        @return: Return up to the first count number of contacts in a list
                 If no contacts are present a null-list is returned
         @rtype: list
         """
+        # Return all contacts in bucket
+        if count == "ALL":
+            count = len(self._contacts)
+
         # Get current contact number
         currentLen = len(self._contacts)
 
@@ -70,11 +60,14 @@ class KBucket:
         # !!VERIFY!! behaviour
         if count > kademlia.constants.k:
             count = kademlia.constants.k
+            raise IndexError('Count value too big adjusting to bucket size')
 
         # Check if count value in range and,
         # if count number of contacts are available
         if not currentLen:
             contactList = list()
+            raise BucketEmpty('No contacts in bucket')
+
         # length of list less than requested amount
         elif currentLen < count:
             contactList = self._contacts[0:currentLen]
@@ -87,20 +80,36 @@ class KBucket:
     def removeContact(self, index):
         """ Remove given contact from list
         
-        @return: Return true if operation successful else return false
-        @rtype: bool
+        @param index: Remove contact in this position from the bucket
+        @type index: Integer
+        @raise IndexError: If index value too large or not enough contacts are present in the bucket
         """
 
         # Check to see if index is valid
-        if index > kademlia.constants.k-1 or index > len(self._contacts)-1:
-            return False
+        if index > kademlia.constants.k-1: # This may never occur - remove check?
+            raise IndexError('Specified index greater than bucket length')
+            return
+        if index > len(self._contacts)-1:
+            raise IndexError('Specified index greater than the number of current contacts')
+            return
+
         # Remove contact
-        else:
-            tmpContact = self._contacts[index]
-            self._contacts.remove(tmpContact)
-            return True
+        tmpContact = self._contacts[index]
+        self._contacts.remove(tmpContact)
 
 
-def rpc_ping(contact):
-    return pingResult
+class BucketFull(Exception):
+    """ BucketFull exception is raised when the bucket is full
+    
+        This exception will most probably be raised in addContact()
+    """
+    def __init__(self, message):
+        self.message = message
 
+class BucketEmpty(Exception):
+    """ BucketEmpty exception is raised when the bucket is empty
+    
+        This exception will most probably be raised in getContacts()
+    """
+    def __init__(self, message):
+        self.message = message

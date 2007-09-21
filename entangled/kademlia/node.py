@@ -10,14 +10,17 @@
 import hashlib, random
 
 import datastore
+import kbucket
+
 
 class Node:
     def __init__(self, knownNodes=None, dataStore=datastore.DataStore()):
         self.id = self._generateID()
-        self._buckets = []
+        self._buckets = [] # remove?
         self._connection = None
         self._dataStore = dataStore
-        
+        self._kbucket = kbucket.KBucket()
+
     def _generateID(self):
         """ Generates a 160-bit pseudo-random identifier
         
@@ -34,8 +37,35 @@ class Node:
     def findNode(self, key):
         pass
     
-    def updateContacts(self, contacts):
-        pass
+    def updateContact(self, contact):
+        """ Update the given contact
+
+        @param contacts: kademlia.contact.Contact 
+        @note: It is assumed that the bucket is -
+            1) the contact is alive - timeout stuff sorted before method called!
+            2) not full
+            3) contact is in list
+
+            If the exception is raised then a new contact has arrived
+            and then the bucket should be resorted i.e. closest contacts are in bucket
+        """
+        try:
+            self._kbucket.addContact(contact)
+        except self._kbucket.BucketFull, e:
+            print "Warning: " + e.message()
+            updateContacts(contact)
+
+    def updateContacts(self, contact):
+        """ Update all current contacts in bucket by sending a ping request to all of them
+            Then determine the closest set of contacts
+        """
+        contactList = self._kbucket.getContacts("ALL")
+        for currentContact in contactList:
+            # PING(currentContact)
+            pass
+        
+        # COMPARE RTT (round trip time)
+
 
     def _distance(self, keyOne, keyTwo):
         """ Calculate the XOR result between two string variables
