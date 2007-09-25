@@ -58,9 +58,6 @@ class KBucketTest(unittest.TestCase):
 
 
     def testRemoveContact(self):
-        # clean contact bucket
-        #self.kbucket._contacts = list()
-
         # try remove contact from empty list
         rmContact = contact.Contact('TestContactID1','127.0.0.1',1, 1)
         self.failUnlessRaises(ValueError, self.kbucket.removeContact, rmContact)
