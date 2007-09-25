@@ -75,21 +75,22 @@ class KBucketTest(unittest.TestCase):
 
     def testRemoveContact(self):
         # clean contact bucket
-        self.kbucket._contacts = list()
+        #self.kbucket._contacts = list()
 
         # try remove contact from empty list
-        result = self.kbucket.removeContact(1)
-        self.failIf(result != False, "Returned result should be false - contact not in bucket. Bucket empty")
-
+        rmContact = contact.Contact('TestContactID1','127.0.0.1',1, 1)
+        self.failUnlessRaises(ValueError, self.kbucket.removeContact, rmContact)
+        
         # Add couple contacts
         for i in range(kademlia.constants.k-2):
-            tmpContact = contact.Contact(i,i,i,i)
+            tmpContact = contact.Contact('tmpTestContactID%d' % i, str(i), i, i)
             result = self.kbucket.addContact(tmpContact)
             self.failIf(result != True, "Could not add contact to non-full bucket")
 
         # try remove contact from empty list
-        result = self.kbucket.removeContact(1)
-        self.failIf(result != True, "Could not remove contact from bucket")
+        self.kbucket.addContact(rmContact)
+        result = self.kbucket.removeContact(rmContact)
+        self.failIf(rmContact in self.kbucket._contacts, "Could not remove contact from bucket")
 
 
 def suite():
