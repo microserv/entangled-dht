@@ -19,44 +19,28 @@ class KBucketTest(unittest.TestCase):
         # test if contacts can be added to empty list
         # add k contacts to bucket
         for i in range(kademlia.constants.k):
-            tmpContact = contact.Contact(i,i,i,i)
+            tmpContact = contact.Contact('tempContactID%d' % i, str(i), i, i)
             result = self.kbucket.addContact(tmpContact)
-            self.failIf(result != True, "Could not add contact to non-full bucket")
-            self.failIf(self.kbucket._contacts[i] != tmpContact, "Contact in position %s not then same as the newly added contact" % (str(i)))
+            self.failIf(self.kbucket._contacts[i] != tmpContact, "Contact in position %d not then same as the newly added contact" % i)
 
-        # test if contact can be added when the first contact didn't respond
-        kademlia.kbucket.pingResult = False
+        # test if contact is not added to full list
         i += 1
-        tmpContact = contact.Contact(i,i,i,i)
-        result = self.kbucket.addContact(tmpContact)
-        self.failIf(result != True, "Could not add contact to end of bucket")
-        self.failIf(self.kbucket._contacts[i-1] != tmpContact, "Contact in position %s not then same as the newly added contact" % (str(i)))
-
-        # test if contact is not added to full list when first contact responds
-        kademlia.kbucket.pingResult = True
-        i += 1
-        tmpContact = contact.Contact(i,i,i,i)
-        result = self.kbucket.addContact(tmpContact)
-        self.failIf(result != False, "Contact should not have been added to the bucket")
+        tmpContact = contact.Contact('tempContactID%d' % i, str(i), i, i)
+        self.failUnlessRaises(kademlia.kbucket.BucketFull, self.kbucket.addContact, tmpContact)
 
     def testGetContacts(self):
-        # clean contact bucket
-        self.kbucket._contacts = list()
-
         # try and get 2 contacts from empty list
         result = self.kbucket.getContacts(2)
-        self.failIf(len(result) != 0, "Returned list should be empty - list length %s" % (len(result)))
+        self.failIf(len(result) != 0, "Returned list should be empty; returned list length: %d" % (len(result)))
 
         # Add k-2 contacts
         for i in range(kademlia.constants.k-2):
             tmpContact = contact.Contact(i,i,i,i)
-            result = self.kbucket.addContact(tmpContact)
-            self.failIf(result != True, "Could not add contact to non-full bucket")
+            self.kbucket.addContact(tmpContact)
 
         # try to get too many contacts
         # requested count greater than bucket size
-        result = self.kbucket.getContacts(kademlia.constants.k + 3)
-        self.failIf(len(result) != kademlia.constants.k-2, "Too many contacts in returned list %s - should be %s" % (len(result), kademlia.constants.k-2))
+        self.failUnlessRaises(IndexError, self.kbucket.getContacts, kademlia.constants.k+3)
 
         # verify returned contacts in list
         for i in range(kademlia.constants.k-2):
@@ -84,8 +68,7 @@ class KBucketTest(unittest.TestCase):
         # Add couple contacts
         for i in range(kademlia.constants.k-2):
             tmpContact = contact.Contact('tmpTestContactID%d' % i, str(i), i, i)
-            result = self.kbucket.addContact(tmpContact)
-            self.failIf(result != True, "Could not add contact to non-full bucket")
+            self.kbucket.addContact(tmpContact)
 
         # try remove contact from empty list
         self.kbucket.addContact(rmContact)
