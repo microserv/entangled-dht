@@ -14,3 +14,6 @@ alpha = 3
 
 # Maximum number of contacts stored in a bucket; this should be an even number
 k = 8
+
+# Timeout for network operations (in seconds)
+rpcTimeout = 20
