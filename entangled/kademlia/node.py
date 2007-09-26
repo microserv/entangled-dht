@@ -12,7 +12,7 @@ import hashlib, random
 import constants
 import kbucket
 import datastore
-import network
+import protocol
 
 def rpcmethod(func):
     """ Decorator to expose methods as RPC calls """
@@ -20,17 +20,17 @@ def rpcmethod(func):
     return func
 
 class Node(object):
-    def __init__(self, knownNodes=None, dataStore=None, networkPresence=None):
+    def __init__(self, knownNodes=None, dataStore=None, networkProtocol=None):
         self.id = self._generateID()
         # Create k-buckets (for storing contacts)
         self._buckets = []
         for i in range(160):
             self._buckets.append(kbucket.KBucket())
         # Initialize this node's network access mechanisms
-        if networkPresence == None:
-            self._presence = network.NodePresence(self)
+        if networkProtocol == None:
+            self._protocol = protocol.KademliaProtocol(self)
         else:
-            self._presence = networkPresence
+            self._protocol = networkProtocol
         # Initialize the data storage mechanism used by this node
         if dataStore == None:
             self._dataStore = datastore.DataStore()
@@ -183,7 +183,8 @@ class Node(object):
             return self._dataStore[key]
         else:
             return self.findNode(key)
-        
+
+    @rpcmethod
     def ping(self):
         """ Used to verify contact between two Kademlia nodes """
         return 'pong'
@@ -207,4 +208,3 @@ class Node(object):
         valKeyOne = long(keyOne.encode('hex'), 16)
         valKeyTwo = long(keyTwo.encode('hex'), 16)
         return valKeyOne ^ valKeyTwo
-
