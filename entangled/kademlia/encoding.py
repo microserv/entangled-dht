@@ -36,7 +36,7 @@ class Encoding(object):
         """
 
 class Bencode(Encoding):
-    """ Implementation of the Bencode algorith used by Bittorrent """
+    """ Implementation of the Bencode algorithm used by Bittorrent """
     
     def encode(self, data):
         """ Encoder implementation of the Bencode algorithm
