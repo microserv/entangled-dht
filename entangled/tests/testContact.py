@@ -21,7 +21,13 @@ class ContactOperatorsTest(unittest.TestCase):
         self.failIfEqual(self.firstContact, self.secondContact, 'Contacts with different IDs should not be equal.')
         self.failUnlessEqual(self.firstContact, self.firstContactDifferentValues, 'Contacts with same IDs should be equal, even if their other values differ.')
         self.failUnlessEqual(self.secondContact, self.secondContactCopy, 'Different copies of the same Contact instance should be equal')
-        
+    
+    def testIllogicalComparisons(self):
+        """ Test comparisons with non-Contact types """
+        for item in (123, 'test string', {'key': 'value'}):
+            self.failIfEqual(self.firstContact, item, '"eq" operator: Contact object should not be equal to %s type' % type(item).__name__)
+            self.failUnless(self.firstContact != item, '"ne" operator: Contact object should not be equal to %s type' % type(item).__name__)
+    
 def suite():
     suite = unittest.TestSuite()
     suite.addTest(unittest.makeSuite(ContactOperatorsTest))
