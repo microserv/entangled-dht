@@ -124,10 +124,7 @@ class KademliaProtocol(protocol.DatagramProtocol):
         if callable(f) and hasattr(f, 'rpcmethod'):
             # Call the exposed Node method and return the result to the deferred callback chain
             try:
-                if len(args):
-                    result = f(*args)
-                else:
-                    result = f()
+                result = f(*args)
             except Exception, e:
                 df.errback(failure.Failure(e))
             else:
