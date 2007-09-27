@@ -74,22 +74,10 @@ class KademliaProtocolTest(unittest.TestCase):
 
     def testRPCPing(self):
         """ Tests if an RPC message sent to a dead remote node time out correctly """
-        def tempMsgTimeout(messageID):
-            """ Replacement testing method for the KademliaProtol's normal
-            _msgTimeout() method """
-            if self.protocol._sentMessages.has_key(messageID):
-                df = self.protocol._sentMessages[messageID]
-                del self.protocol._sentMessages[messageID]
-                df.errback(failure.Failure(defer.TimeoutError('RPC request timed out')))
-            else:
-                print "ERROR: deferred timed out, but is not present in sent messages list!"
-            kademlia.protocol.reactor.stop()
-        
         deadContact = kademlia.contact.Contact('node2', '127.0.0.1', 91824, self.protocol)
         self.node.addContact(deadContact)
         # Make sure the contact was added
         self.failIf(deadContact not in self.node.contacts, 'Contact not added to fake node (error in test code)')
-        self.protocol._msgTimeout = tempMsgTimeout
         # Set the timeout to 0 for testing
         tempTimeout = kademlia.constants.rpcTimeout
         kademlia.constants.rpcTimeout = 0
@@ -97,10 +85,10 @@ class KademliaProtocolTest(unittest.TestCase):
         # Run the PING RPC (which should timeout)
         df = self.node.indirectPingContact(self.protocol, deadContact)
         # Stop the reactor if a result arrives (timeout or not)
-        df.addBoth(lambda _: kademlia.protocol.reactor.stop)
+        df.addBoth(lambda _: kademlia.protocol.reactor.stop())
         kademlia.protocol.reactor.run()
         # See if the contact was removed due to the timeout
-        self.failIf(deadContact in self.node.contacts, 'RPC timed out, but contact was not removed!')
+        self.failIf(deadContact in self.node.contacts, 'Contact was not removed after RPC timeout.')
         # Restore the global timeout
         kademlia.constants.rpcTimeout = tempTimeout
         
