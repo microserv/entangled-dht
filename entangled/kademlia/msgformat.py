@@ -49,7 +49,7 @@ class DefaultFormat(MessageTranslator):
         elif msgType == self.typeResponse:
             msg = msgtypes.ResponseMessage(msgPrimitive[self.headerMsgID], msgPrimitive[self.headerNodeID], msgPrimitive[self.headerPayload])
         elif msgType == self.typeError:
-            msg = msgtypes.ErrorMessage(msgPrimitive[self.headerMsgID], msgPrimitive[self.headerNodeID], msgPrimitive[self.headerPayload])
+            msg = msgtypes.ErrorMessage(msgPrimitive[self.headerMsgID], msgPrimitive[self.headerNodeID], msgPrimitive[self.headerPayload], msgPrimitive[self.headerArgs])
         else:
             # Unknown message, no payload
             msg = msgtypes.Message(msgPrimitive[self.headerMsgID], msgPrimitive[self.headerNodeID])
@@ -62,10 +62,11 @@ class DefaultFormat(MessageTranslator):
             msg[self.headerType] = self.typeRequest
             msg[self.headerPayload] = message.request
             msg[self.headerArgs] = message.args
+        elif isinstance(message, msgtypes.ErrorMessage):
+            msg[self.headerType] = self.typeError
+            msg[self.headerPayload] = message.exceptionType
+            msg[self.headerArgs] = message.response
         elif isinstance(message, msgtypes.ResponseMessage):
+            msg[self.headerType] = self.typeResponse
             msg[self.headerPayload] = message.response
-            if isinstance(message, msgtypes.ErrorMessage):
-                msg[self.headerType] = self.typeError
-            else:
-                msg[self.headerType] = self.typeResponse
         return msg

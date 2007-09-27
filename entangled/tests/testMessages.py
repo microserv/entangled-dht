@@ -25,11 +25,12 @@ class DefaultFormatTranslatorTest(unittest.TestCase):
                         DefaultFormat.headerMsgID: 'rpc2',
                         DefaultFormat.headerPayload: 'response'}),
                         
-                      (ErrorMessage('rpc3', 'node3', 'error'),
+                      (ErrorMessage('rpc3', 'node3', "<type 'exceptions.ValueError'>", 'this is a test exception'),
                        {DefaultFormat.headerType: DefaultFormat.typeError,
                         DefaultFormat.headerNodeID: 'node3',
                         DefaultFormat.headerMsgID: 'rpc3',
-                        DefaultFormat.headerPayload: 'error'}))
+                        DefaultFormat.headerPayload: "<type 'exceptions.ValueError'>",
+                        DefaultFormat.headerArgs: 'this is a test exception'}))
         self.translator = DefaultFormat()
         self.failUnless(isinstance(self.translator, MessageTranslator), 'Translator class must inherit from kademlia.msgformat.MessageTranslator!')
 

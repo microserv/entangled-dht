@@ -93,19 +93,15 @@ class KademliaProtocolTest(unittest.TestCase):
         kademlia.constants.rpcTimeout = tempTimeout
         
     def testRPCRequest(self):
-        """ Tests if an inbound RPC request is executed and responded to correctly """
+        """ Tests if a valid RPC request is executed and responded to correctly """
         remoteContact = kademlia.contact.Contact('node2', '127.0.0.1', 91824, self.protocol)
         self.node.addContact(remoteContact)
         self.error = None
-        
         def handleError(f):
             self.error = 'An RPC error occurred: %s' % f.getErrorMessage()
-            
-        
         def handleResult(result):
             if result != 'pong':
                 self.error = 'Result from RPC is incorrect; expected "pong", got "%s"' % result
-            
         # Publish the "local" node on the network    
         kademlia.protocol.reactor.listenUDP(91824, self.protocol)
         # Simulate the RPC
@@ -117,7 +113,39 @@ class KademliaProtocolTest(unittest.TestCase):
         self.failIf(self.error, self.error)
         # The list of sent RPC messages should be empty at this stage
         self.failUnlessEqual(len(self.protocol._sentMessages), 0, 'The protocol is still waiting for an RPC result, but the transaction is already done!')
+
+    def testRPCAccess(self):
+        """ Tests invalid RPC requests
         
+        Verifies that an RPC request for an existing but unpublished
+        method is denied, and that the associated (remote) exception gets
+        raised locally """
+        remoteContact = kademlia.contact.Contact('node2', '127.0.0.1', 91824, self.protocol)
+        self.node.addContact(remoteContact)
+        self.error = None
+        def handleError(f):
+            try:
+                f.raiseException()
+            except AttributeError, e:
+                # This is the expected outcome since the remote node did not publish the method
+                self.error = None
+            except Exception, e:
+                self.error = 'The remote method failed, but the wrong exception was raised; expected AttributeError, got %s' % type(e)
+                
+        def handleResult(result):
+            self.error = 'The remote method executed successfully, returning: "%s"; this RPC should not have been allowed.' % result
+        # Publish the "local" node on the network    
+        kademlia.protocol.reactor.listenUDP(91824, self.protocol)
+        # Simulate the RPC
+        df = remoteContact.pingNoRPC()
+        df.addCallback(handleResult)
+        df.addErrback(handleError)
+        df.addBoth(lambda _: kademlia.protocol.reactor.stop())
+        kademlia.protocol.reactor.run()
+        self.failIf(self.error, self.error)
+        # The list of sent RPC messages should be empty at this stage
+        self.failUnlessEqual(len(self.protocol._sentMessages), 0, 'The protocol is still waiting for an RPC result, but the transaction is already done!')
+
 
 def suite():
     suite = unittest.TestSuite()

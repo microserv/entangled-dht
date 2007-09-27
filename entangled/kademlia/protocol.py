@@ -52,8 +52,25 @@ class KademliaProtocol(protocol.DatagramProtocol):
                 df = self._sentMessages[message.id]
                 del self._sentMessages[message.id]
                 if isinstance(message, msgtypes.ErrorMessage):
-                    # The RPC request gave an error
-                    df.errback(InvalidMethod(message.response))
+                    # The RPC request raised a remote exception; raise it locally
+                    print '\nremote exception type:',message.exceptionType
+                    if message.exceptionType.startswith('exceptions.'):
+                        exceptionClassName = message.exceptionType[11:]
+                    else:
+                        localModuleHierarchy = self.__module__.split('.')
+                        remoteHierarchy = message.exceptionType.split('.')
+                        #strip the remote hierarchy
+                        while remoteHierarchy[0] == localModuleHierarchy[0]:
+                            remoteHierarchy.pop(0)
+                            localModuleHierarchy.pop(0)
+                        exceptionClassName = '.'.join(remoteHierarchy)
+                    remoteException = None
+                    try:
+                        exec 'remoteException = %s("%s")' % (exceptionClassName, message.response)
+                    except Exception:
+                        # We could not recreate the exception; create a generic one
+                        remoteException = Exception(message.response)
+                    df.errback(remoteException)
                 else:
                     # We got a result from the RPC
                     df.callback(message.response)
@@ -81,18 +98,21 @@ class KademliaProtocol(protocol.DatagramProtocol):
         self.transport.write(encodedMsg, (contact.address, contact.port))
         return msg.id, df
 
-    def _sendResponse(self, contact, rpcID, response, msgClass=msgtypes.ResponseMessage):
+    def _sendResponse(self, contact, rpcID, response):
         """ Send a RPC response to the specified contact
         """
-        msg = msgClass(rpcID, self._node.id, response)
+        msg = msgtypes.ResponseMessage(rpcID, self._node.id, response)
         msgPrimitive = self._translator.toPrimitive(msg)
         encodedMsg = self._encoder.encode(msgPrimitive)
         self.transport.write(encodedMsg, (contact.address, contact.port))
 
-    def _sendError(self, contact, rpcID, error):
+    def _sendError(self, contact, rpcID, exceptionType, exceptionMessage):
         """ Send an RPC error message to the specified contact
         """
-        self._sendResponse(contact, rpcID, error, msgtypes.ErrorMessage)
+        msg = msgtypes.ErrorMessage(rpcID, self._node.id, exceptionType, exceptionMessage)
+        msgPrimitive = self._translator.toPrimitive(msg)
+        encodedMsg = self._encoder.encode(msgPrimitive)
+        self.transport.write(encodedMsg, (contact.address, contact.port))
 
     def _handleRPC(self, senderContact, rpcID, method, args):
         """ Executes a local function in response to an RPC request """
@@ -101,7 +121,7 @@ class KademliaProtocol(protocol.DatagramProtocol):
         
         # Set up the deferred callchain
         def handleError(f):
-            self._sendError(senderContact, rpcID, f.getErrorMessage())
+            self._sendError(senderContact, rpcID, f.type, f.getErrorMessage())
             
         def handleResult(result):
             self._sendResponse(senderContact, rpcID, result)
@@ -125,8 +145,8 @@ class KademliaProtocol(protocol.DatagramProtocol):
                 df.callback(result)
         else:
             # No such exposed method
-            df.errback(failure.Failure(InvalidMethod, 'Invalid method: %s' % method))
-    
+            df.errback( failure.Failure( AttributeError('Invalid method: %s' % method) ) )
+
     def _msgTimeout(self, messageID):
         """ Called when an RPC request message times out """
         # Find the message that timed out

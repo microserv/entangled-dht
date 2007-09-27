@@ -38,5 +38,9 @@ class ResponseMessage(Message):
 
 class ErrorMessage(ResponseMessage):
     """ Message containing the error from an unsuccessful RPC request """
-    def __init__(self, rpcID, nodeID, response):
-        ResponseMessage.__init__(self, rpcID, nodeID, response)
+    def __init__(self, rpcID, nodeID, exceptionType, errorMessage):
+        ResponseMessage.__init__(self, rpcID, nodeID, errorMessage)
+        if isinstance(exceptionType, type):
+            self.exceptionType = '%s.%s' % (exceptionType.__module__, exceptionType.__name__)
+        else:
+            self.exceptionType = exceptionType
