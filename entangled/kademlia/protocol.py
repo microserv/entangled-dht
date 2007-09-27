@@ -33,8 +33,8 @@ class KademliaProtocol(protocol.DatagramProtocol):
         
     def sendRPC(self, contact, method, args):
         """ Sends an RPC to the specified contact """
-        rpcID, df = self._sendRequest(contact, method, args)
-        self._sentMessages[rpcID] = df
+        rpcID, df, timeoutCall = self._sendRequest(contact, method, args)
+        self._sentMessages[rpcID] = (df, timeoutCall)
         return df
     
     def datagramReceived(self, datagram, address):
@@ -49,7 +49,9 @@ class KademliaProtocol(protocol.DatagramProtocol):
         elif isinstance(message, msgtypes.ResponseMessage):
             # Find the message that triggered this response
             if self._sentMessages.has_key(message.id):
-                df = self._sentMessages[message.id]
+                # Cancel timeout timer for this RPC
+                df, timeoutCall = self._sentMessages[message.id]
+                timeoutCall.cancel()
                 del self._sentMessages[message.id]
                 if isinstance(message, msgtypes.ErrorMessage):
                     # The RPC request raised a remote exception; raise it locally
@@ -93,9 +95,9 @@ class KademliaProtocol(protocol.DatagramProtocol):
         
         df = defer.Deferred()
         # Set the RPC timeout timer
-        reactor.callLater(constants.rpcTimeout, self._msgTimeout, msg.id)
+        timeoutCall = reactor.callLater(constants.rpcTimeout, self._msgTimeout, msg.id)
         self.transport.write(encodedMsg, (contact.address, contact.port))
-        return msg.id, df
+        return msg.id, df, timeoutCall
 
     def _sendResponse(self, contact, rpcID, response):
         """ Send a RPC response to the specified contact
@@ -150,7 +152,7 @@ class KademliaProtocol(protocol.DatagramProtocol):
         """ Called when an RPC request message times out """
         # Find the message that timed out
         if self._sentMessages.has_key(messageID):
-            df = self._sentMessages[messageID]
+            df = self._sentMessages[messageID][0]
             del self._sentMessages[messageID]
             # The message's destination node is now considered to be dead;
             # raise an (asynchronous) TimeoutError exception to update the host node

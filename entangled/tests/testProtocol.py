@@ -73,7 +73,7 @@ class KademliaProtocolTest(unittest.TestCase):
         kademlia.protocol.reactor.run()
 
     def testRPCTimeout(self):
-        """ Tests if an RPC message sent to a dead remote node time out correctly """
+        """ Tests if a RPC message sent to a dead remote node times out correctly """
         deadContact = kademlia.contact.Contact('node2', '127.0.0.1', 91824, self.protocol)
         self.node.addContact(deadContact)
         # Make sure the contact was added
@@ -112,12 +112,12 @@ class KademliaProtocolTest(unittest.TestCase):
         kademlia.protocol.reactor.run()
         self.failIf(self.error, self.error)
         # The list of sent RPC messages should be empty at this stage
-        self.failUnlessEqual(len(self.protocol._sentMessages), 0, 'The protocol is still waiting for an RPC result, but the transaction is already done!')
+        self.failUnlessEqual(len(self.protocol._sentMessages), 0, 'The protocol is still waiting for a RPC result, but the transaction is already done!')
 
     def testRPCAccess(self):
         """ Tests invalid RPC requests
         
-        Verifies that an RPC request for an existing but unpublished
+        Verifies that a RPC request for an existing but unpublished
         method is denied, and that the associated (remote) exception gets
         raised locally """
         remoteContact = kademlia.contact.Contact('node2', '127.0.0.1', 91824, self.protocol)
@@ -144,7 +144,7 @@ class KademliaProtocolTest(unittest.TestCase):
         kademlia.protocol.reactor.run()
         self.failIf(self.error, self.error)
         # The list of sent RPC messages should be empty at this stage
-        self.failUnlessEqual(len(self.protocol._sentMessages), 0, 'The protocol is still waiting for an RPC result, but the transaction is already done!')
+        self.failUnlessEqual(len(self.protocol._sentMessages), 0, 'The protocol is still waiting for a RPC result, but the transaction is already done!')
 
 
 def suite():
