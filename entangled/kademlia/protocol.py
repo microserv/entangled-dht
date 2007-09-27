@@ -33,8 +33,15 @@ class KademliaProtocol(protocol.DatagramProtocol):
         
     def sendRPC(self, contact, method, args):
         """ Sends an RPC to the specified contact """
-        rpcID, df, timeoutCall = self._sendRequest(contact, method, args)
-        self._sentMessages[rpcID] = (df, timeoutCall)
+        msg = msgtypes.RequestMessage(self._node.id, method, args)
+        msgPrimitive = self._translator.toPrimitive(msg)
+        encodedMsg = self._encoder.encode(msgPrimitive)
+        df = defer.Deferred()
+        # Set the RPC timeout timer
+        timeoutCall = reactor.callLater(constants.rpcTimeout, self._msgTimeout, msg.id)
+        # Transmit the data
+        self.transport.write(encodedMsg, (contact.address, contact.port))
+        self._sentMessages[msg.id] = (df, timeoutCall)
         return df
     
     def datagramReceived(self, datagram, address):
@@ -79,25 +86,6 @@ class KademliaProtocol(protocol.DatagramProtocol):
                 # If the original message isn't found, it must have timed out
                 #TODO: we should probably do something with this...
                 pass
-    
-    def _sendRequest(self, contact, request, args):
-        """ Send an RPC request to the specified contact
-        
-        @todo: This function will change to use a proper RPC PING
-               as soon as we've done the RPC stuff.
-        
-        @param contact: The recipient of the RPC
-        @type contact: kademlia.contact.Contact
-        """
-        msg = msgtypes.RequestMessage(self._node.id, request, args)
-        msgPrimitive = self._translator.toPrimitive(msg)
-        encodedMsg = self._encoder.encode(msgPrimitive)
-        
-        df = defer.Deferred()
-        # Set the RPC timeout timer
-        timeoutCall = reactor.callLater(constants.rpcTimeout, self._msgTimeout, msg.id)
-        self.transport.write(encodedMsg, (contact.address, contact.port))
-        return msg.id, df, timeoutCall
 
     def _sendResponse(self, contact, rpcID, response):
         """ Send a RPC response to the specified contact
