@@ -72,8 +72,8 @@ class KademliaProtocolTest(unittest.TestCase):
         kademlia.protocol.reactor.callLater(0, kademlia.protocol.reactor.stop)
         kademlia.protocol.reactor.run()
 
-    def testRPC(self):
-        """ Tests RPC message sending, timeouts, etc """
+    def testRPCPing(self):
+        """ Tests if an RPC message sent to a dead remote node time out correctly """
         def tempMsgTimeout(messageID):
             """ Replacement testing method for the KademliaProtol's normal
             _msgTimeout() method """
@@ -91,6 +91,7 @@ class KademliaProtocolTest(unittest.TestCase):
         self.failIf(deadContact not in self.node.contacts, 'Contact not added to fake node (error in test code)')
         self.protocol._msgTimeout = tempMsgTimeout
         # Set the timeout to 0 for testing
+        tempTimeout = kademlia.constants.rpcTimeout
         kademlia.constants.rpcTimeout = 0
         kademlia.protocol.reactor.listenUDP(0, self.protocol)            
         # Run the PING RPC (which should timeout)
@@ -100,6 +101,35 @@ class KademliaProtocolTest(unittest.TestCase):
         kademlia.protocol.reactor.run()
         # See if the contact was removed due to the timeout
         self.failIf(deadContact in self.node.contacts, 'RPC timed out, but contact was not removed!')
+        # Restore the global timeout
+        kademlia.constants.rpcTimeout = tempTimeout
+        
+    def testRPCRequest(self):
+        """ Tests if an inbound RPC request is executed and responded to correctly """
+        remoteContact = kademlia.contact.Contact('node2', '127.0.0.1', 91824, self.protocol)
+        self.node.addContact(remoteContact)
+        self.error = None
+        
+        def handleError(f):
+            self.error = 'An RPC error occurred: %s' % f.getErrorMessage()
+            
+        
+        def handleResult(result):
+            if result != 'pong':
+                self.error = 'Result from RPC is incorrect; expected "pong", got "%s"' % result
+            
+        # Publish the "local" node on the network    
+        kademlia.protocol.reactor.listenUDP(91824, self.protocol)
+        # Simulate the RPC
+        df = remoteContact.ping()
+        df.addCallback(handleResult)
+        df.addErrback(handleError)
+        df.addBoth(lambda _: kademlia.protocol.reactor.stop())
+        kademlia.protocol.reactor.run()
+        self.failIf(self.error, self.error)
+        # The list of sent RPC messages should be empty at this stage
+        self.failUnlessEqual(len(self.protocol._sentMessages), 0, 'The protocol is still waiting for an RPC result, but the transaction is already done!')
+        
 
 def suite():
     suite = unittest.TestSuite()

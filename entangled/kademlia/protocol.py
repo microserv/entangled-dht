@@ -51,7 +51,12 @@ class KademliaProtocol(protocol.DatagramProtocol):
             if self._sentMessages.has_key(message.id):
                 df = self._sentMessages[message.id]
                 del self._sentMessages[message.id]
-                df.callback(message)
+                if isinstance(message, msgtypes.ErrorMessage):
+                    # The RPC request gave an error
+                    df.errback(InvalidMethod(message.response))
+                else:
+                    # We got a result from the RPC
+                    df.callback(message.response)
             else:
                 # If the original message isn't found, it must have timed out
                 #TODO: we should probably do something with this...
@@ -73,7 +78,6 @@ class KademliaProtocol(protocol.DatagramProtocol):
         df = defer.Deferred()
         # Set the RPC timeout timer
         reactor.callLater(constants.rpcTimeout, self._msgTimeout, msg.id)
-        #df.setTimeout(constants.rpcTimeout, timeoutFunc=self._msgTimeout, messageID=msg.id)
         self.transport.write(encodedMsg, (contact.address, contact.port))
         return msg.id, df
 
@@ -96,21 +100,29 @@ class KademliaProtocol(protocol.DatagramProtocol):
         self._node.addContact(senderContact)
         
         # Set up the deferred callchain
-        def handleError(error):
-            self.protocol.sendError(senderContact, rpcID, error)
+        def handleError(f):
+            self._sendError(senderContact, rpcID, f.getErrorMessage())
             
         def handleResult(result):
-            self.protocol.sendResponse(senderContact, rpcID, result)
+            self._sendResponse(senderContact, rpcID, result)
         
         df = defer.Deferred()
         df.addCallback(handleResult)
         df.addErrback(handleError)
-                            
+        
         # Execute the RPC
         f = getattr(self._node, method, None)
         if callable(f) and hasattr(f, 'rpcmethod'):
             # Call the exposed Node method and return the result to the deferred callback chain
-            df.callback(f(msgArgs, *args, **kwargs))            
+            try:
+                if len(args):
+                    result = f(args)
+                else:
+                    result = f()
+            except Exception, e:
+                df.errback(failure.Failure(e))
+            else:
+                df.callback(result)
         else:
             # No such exposed method
             df.errback(failure.Failure(InvalidMethod, 'Invalid method: %s' % method))
