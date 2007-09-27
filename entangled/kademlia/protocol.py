@@ -125,7 +125,7 @@ class KademliaProtocol(protocol.DatagramProtocol):
             # Call the exposed Node method and return the result to the deferred callback chain
             try:
                 if len(args):
-                    result = f(args)
+                    result = f(*args)
                 else:
                     result = f()
             except Exception, e:

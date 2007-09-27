@@ -100,8 +100,9 @@ class KademliaProtocolTest(unittest.TestCase):
         def handleError(f):
             self.error = 'An RPC error occurred: %s' % f.getErrorMessage()
         def handleResult(result):
-            if result != 'pong':
-                self.error = 'Result from RPC is incorrect; expected "pong", got "%s"' % result
+            expectedResult = 'pong'
+            if result != expectedResult:
+                self.error = 'Result from RPC is incorrect; expected "%s", got "%s"' % (expectedResult, result)
         # Publish the "local" node on the network    
         kademlia.protocol.reactor.listenUDP(91824, self.protocol)
         # Simulate the RPC
@@ -145,6 +146,30 @@ class KademliaProtocolTest(unittest.TestCase):
         self.failIf(self.error, self.error)
         # The list of sent RPC messages should be empty at this stage
         self.failUnlessEqual(len(self.protocol._sentMessages), 0, 'The protocol is still waiting for a RPC result, but the transaction is already done!')
+
+    def testRPCRequestArgs(self):
+        """ Tests if an RPC requiring arguments is executed correctly """
+        remoteContact = kademlia.contact.Contact('node2', '127.0.0.1', 91824, self.protocol)
+        self.node.addContact(remoteContact)
+        self.error = None
+        def handleError(f):
+            self.error = 'An RPC error occurred: %s' % f.getErrorMessage()
+        def handleResult(result):
+            expectedResult = 'This should be returned.'
+            if result != 'This should be returned.':
+                self.error = 'Result from RPC is incorrect; expected "%s", got "%s"' % (expectedResult, result)
+        # Publish the "local" node on the network    
+        kademlia.protocol.reactor.listenUDP(91824, self.protocol)
+        # Simulate the RPC
+        df = remoteContact.echo('This should be returned.')
+        df.addCallback(handleResult)
+        df.addErrback(handleError)
+        df.addBoth(lambda _: kademlia.protocol.reactor.stop())
+        kademlia.protocol.reactor.run()
+        self.failIf(self.error, self.error)
+        # The list of sent RPC messages should be empty at this stage
+        self.failUnlessEqual(len(self.protocol._sentMessages), 0, 'The protocol is still waiting for a RPC result, but the transaction is already done!')
+        
 
 
 def suite():
