@@ -72,7 +72,7 @@ class KademliaProtocolTest(unittest.TestCase):
         kademlia.protocol.reactor.callLater(0, kademlia.protocol.reactor.stop)
         kademlia.protocol.reactor.run()
 
-    def testRPCPing(self):
+    def testRPCTimeout(self):
         """ Tests if an RPC message sent to a dead remote node time out correctly """
         deadContact = kademlia.contact.Contact('node2', '127.0.0.1', 91824, self.protocol)
         self.node.addContact(deadContact)
