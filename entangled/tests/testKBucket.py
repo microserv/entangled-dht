@@ -16,7 +16,7 @@ class KBucketTest(unittest.TestCase):
         self.kbucket = kademlia.kbucket.KBucket()
 
     def testAddContact(self):
-        """ Tests the bucket handles contact additions/updates correctly """
+        """ Tests if the bucket handles contact additions/updates correctly """
         # Test if contacts can be added to empty list
         # Add k contacts to bucket
         for i in range(kademlia.constants.k):
@@ -33,8 +33,6 @@ class KBucketTest(unittest.TestCase):
         existingContact = self.kbucket._contacts[0]
         self.kbucket.addContact(existingContact)
         self.failUnlessEqual(self.kbucket._contacts.index(existingContact), len(self.kbucket._contacts)-1, 'Contact not correctly updated; it should be at the end of the list of contacts')
-        
-        
 
     def testGetContacts(self):
         # try and get 2 contacts from empty list
@@ -63,7 +61,6 @@ class KBucketTest(unittest.TestCase):
         # requested count less than contact number
         result = self.kbucket.getContacts(kademlia.constants.k-3)
         self.failIf(len(result) != kademlia.constants.k-3, "Too many contacts in returned list %s - should be %s" % (len(result), kademlia.constants.k-3))
-
 
     def testRemoveContact(self):
         # try remove contact from empty list
