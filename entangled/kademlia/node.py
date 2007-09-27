@@ -7,7 +7,7 @@
 # The docstrings in this module contain epytext markup; API documentation
 # may be created by processing this file with epydoc: http://epydoc.sf.net
 
-import hashlib, random
+import hashlib, random, math
 
 import constants
 import kbucket
@@ -86,7 +86,7 @@ class Node(object):
                  node is returning all of the contacts that it knows of.
         @rtype: list
         """
-        distance = self._distance(self.id, contact.id)
+        distance = self._distance(self.id, key)
         bucketIndex = int(math.log(distance, 2))
         closestNodes = self._buckets[bucketIndex].getContacts(constants.k)
         # The node must return k contacts, unless it does not know at least 8
@@ -95,7 +95,7 @@ class Node(object):
         canGoHigher = bucketIndex+i < 160
         # Fill up the node list to k nodes, starting with the closest neighbouring nodes known 
         while len(closestNodes) < constants.k and (canGoLower or canGoHigher):
-            #TODO: this needs to be optimized
+            #TODO: this may need to be optimized
             if canGoLower:
                 closestNodes.extend(self._buckets[bucketIndex-i].getContacts(constants.k - len(closestNodes)))
                 canGoLower = bucketIndex-(i+1) >= 0
@@ -118,8 +118,11 @@ class Node(object):
             If the exception is raised then a new contact has arrived
             and then the bucket should be resorted i.e. closest contacts are in bucket
         """
+        distance = self._distance(self.id, contact.id)
+        bucketIndex = int(math.log(distance, 2))
+        
         try:
-            self._kbucket.addContact(contact)
+            self._buckets[bucketIndex].addContact(contact)
         except kbucket.BucketFull, e:
             print 'addContact(): Warning: ', e
             updateContacts(contact)
@@ -144,7 +147,7 @@ class Node(object):
         """ Update all current contacts in bucket by sending a ping request to all of them
             Then determine the closest set of contacts
         """
-        contactList = self._kbucket.getContacts("ALL")
+        contactList = self._buckets.getContacts("ALL")
         for currentContact in contactList:
             # PING(currentContact)
             pass

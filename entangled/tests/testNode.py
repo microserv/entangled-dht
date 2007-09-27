@@ -70,10 +70,32 @@ class NodeDataTest(unittest.TestCase):
         for key, value in self.cases:
             self.failUnless(key in self.node._dataStore, 'Stored key not found in node\'s DataStore: "%s"' % key)
 
+class NodeContactTest(unittest.TestCase):
+    """ Test case for the Node class's contact management-related functions """
+    def setUp(self):
+        self.node = kademlia.node.Node()
+    
+    def testAddContact(self):
+        """ Tests if a contact can be added and retrieved correctly """
+        import kademlia.contact
+        import hashlib
+        # Create the contact
+        h = hashlib.sha1()
+        h.update('node1')
+        contactID = h.digest()
+        contact = kademlia.contact.Contact(contactID, '127.0.0.1', 91824, self.node._protocol)
+        # Now add it...
+        self.node.addContact(contact)
+        # ...and request the closest nodes to it using FIND_NODE
+        closestNodes = self.node.findNode(contactID)
+        self.failUnlessEqual(len(closestNodes), 1, 'Wrong amount of contacts returned; expected 1, got %d' % len(closestNodes))
+        self.failUnless(contact in closestNodes, 'Added contact not found by issueing FIND_NODE')
+
 def suite():
     suite = unittest.TestSuite()
     suite.addTest(unittest.makeSuite(NodeIDTest))
     suite.addTest(unittest.makeSuite(NodeDataTest))
+    suite.addTest(unittest.makeSuite(NodeContactTest))
     return suite
 
 if __name__ == '__main__':

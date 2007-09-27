@@ -53,7 +53,6 @@ class KademliaProtocol(protocol.DatagramProtocol):
                 del self._sentMessages[message.id]
                 if isinstance(message, msgtypes.ErrorMessage):
                     # The RPC request raised a remote exception; raise it locally
-                    print '\nremote exception type:',message.exceptionType
                     if message.exceptionType.startswith('exceptions.'):
                         exceptionClassName = message.exceptionType[11:]
                     else:
