@@ -9,10 +9,13 @@
 
 import hashlib, random, math
 
+from twisted.internet import defer
+
 import constants
 import kbucket
 import datastore
 import protocol
+from contact import Contact
 
 def rpcmethod(func):
     """ Decorator to expose methods as RPC calls """
@@ -20,7 +23,14 @@ def rpcmethod(func):
     return func
 
 class Node(object):
-    def __init__(self, knownNodes=None, dataStore=None, networkProtocol=None):
+    def __init__(self, knownNodeAddresses=None, dataStore=None, networkProtocol=None):
+        """
+        @param knownNodeAddresses: A sequence of tuples containing IP address
+                                   information for existing nodes on the
+                                   Kademlia network, in the format:
+                                   C{(<ip address>, (udp port>)}
+        @type knownNodeAddresses: tuple
+        """
         self.id = self._generateID()
         # Create k-buckets (for storing contacts)
         self._buckets = []
@@ -36,48 +46,152 @@ class Node(object):
             self._dataStore = datastore.DataStore()
         else:
             self._dataStore = dataStore
+            
+    def joinNetwork(self, udpPort=81172):
+        """ Causes the Node to join the Kademlia network; this will execute
+        the Twisted reactor's main loop """
+        protocol.reactor.listenUDP(udpPort, self._protocol)
+        # Initiate the Kademlia joining sequence
+        df = self._iterativeFindNode(self.id)
+        #TODO: Refresh buckets
+        protocol.reactor.run()
 
     def _iterativeFindNode(self, key):
-        """ The basic Kademlia node lookup operation
+        """ The basic Kademlia iterative node lookup operation
         
         This builds a list of k "closest" contacts through iterative use of
         the "FIND_NODE" RPC """
-        shortlist = self.findNode(key, constants.alpha)
+        print '\n_iterativeFindNode() called'
+        shortlist = self._findCloseNodes(key, constants.alpha)
         # Note the closest known node
         #TODO: possible IndexError exception here:
-        closestNode = shortlist[0]
+        closestNode = [shortlist[0], None] # format: [<current closest node>, <previous closest node>]
         for contact in shortlist:
-            if self._distance(key, contact.id) < self._distance(key, closestNode.id):
-                closestNode = contact
+            if self._distance(key, contact.id) < self._distance(key, closestNode[0].id):
+                closestNode[0] = contact
     
-        def extendShortlist(rpcContacts):
-            for contact in rpcContacts:
-                if contact not in shortlist:
-                    shortlist.append(contact)
+        def extendShortlist(responseMsg):
+            #print 'deferred callback to extendShortlist:'
+            #print '==========='
+            # Mark this node as active
+            if responseMsg.nodeID not in activeContacts:
+                activeContacts.append(responseMsg.nodeID)
+            # Now grow extend the shortlist with the returned contacts
+            result = responseMsg.response
+            #TODO: some validation on the result (for guarding against attacks)
+            for contactTriple in result:
+                testContact = Contact(contactTriple[0], contactTriple[1], contactTriple[2], self._protocol)
+                if testContact not in shortlist:
+                    #TODO: currently, the shortlist can grow to more than k entries... should probably fix this, but it isn't fatal
+                    shortlist.append(testContact)
+                    if self._distance(key, testContact.id) < self._distance(key, closestNode[0].id):
+                        closestNode[0] = testContact
+            return responseMsg.nodeID
         
-        def removeFromShortlist(errorContact):
-            if errorContact in shortlist:
-                shortlist.remove(errorContact)
-        
+        def removeFromShortlist(failure):
+            #print 'deferred errback to extendShortlist:', failure
+            #print '==========='
+            failure.trap(protocol.TimeoutError)
+            deadContactID = failure.getErrorMessage()
+            if deadContactID in shortlist:
+                shortlist.remove(deadContactID)
+            return deadContactID  
+                
+        def cancelActiveProbe(contactID):
+            #if contactID in activeProbes:
+                #activeProbes.remove(contactID)
+            activeProbes.pop()
+            if len(activeProbes) == 0 and len(pendingIterationCalls):
+                # Force the iteration
+                pendingIterationCalls[0].cancel()
+                searchIteration()
+
         # Send parallel, asynchronous FIND_NODE RPCs to the shortlist of contacts
         alreadyContacted = []
-        for contact in shortlist:
-            #TODO: add deferred, timeouts - remove from shortlist if timeout
-            df = contact.findNode(key)
-            df.addErrback(removeFromShortlist)
-            df.addCallback(extendShortlist)
-            alreadyContacted.append(contact)
+        activeProbes = []
+        # A list of known-to-be-active remote nodes
+        activeContacts = []
+        pendingIterationCalls = []
+        #print 'closestNode:', closestNode[0]
+        #print 'previousClosestNode:', closestNode[1]
+        def searchIteration():
+            # See if should continue the search
+            if len(activeContacts) >= constants.k or closestNode[0] == closestNode[1]:
+                # Ok, we're done; either we have accumulated k active contacts or
+                # no improvement in closestNode has been noted
+                print 'len(activeContacts):', len(activeContacts)
+                print 'closestNode:', closestNode[0]
+                print 'previousClosestNode:', closestNode[1]
+                #print '!!!!!!!ADDING CONTACTS!!!!!!!!!!'
+                #for contact in activeContacts:
+                #    self.addContact(contact)
+                print 'stopping iterations....'
+                outerDf.callback(closestNode[0])
+            else:
+                # The search continues...
+                contactedNow = 0
+                for contact in shortlist:
+                    if contact.id not in alreadyContacted:
+                        print 'adding probe to list...'
+                        activeProbes.append(contact.id)
+                        df = contact.findNode(key, rawResponse=True)
+                        df.addCallback(extendShortlist)
+                        df.addErrback(removeFromShortlist)
+                        df.addCallback(cancelActiveProbe)
+                        alreadyContacted.append(contact.id)
+                        contactedNow += 1
+                    if contactedNow == constants.alpha:
+                        break
+                closestNode[1] = closestNode[0]
+                # Schedule the next iteration (Kademlia uses loose parallelism)
+                call = protocol.reactor.callLater(constants.iterativeLookupDelay, searchIteration)
+                pendingIterationCalls.append(call)
                 
+        outerDf = defer.Deferred()
+        # Start the iterations
+        searchIteration()
+        return outerDf
 
-    
-    def findNode(self, key, count=constants.k):
-        """ Finds C{k} known nodes closest to the node/value with the
+
+    @rpcmethod
+    def findNode(self, key, **kwargs):
+        """ Finds a number of known nodes closest to the node/value with the
         specified key.
         
         @param key: the 160-bit key (i.e. the node or value ID) to search for
         @type key: str
-        @param count: the amount of contacts to return (this defaults to C{k})
+        
+        @return: A list of contact triples closest to the specified key. 
+                 This method will return C{k} (or C{count}, if specified)
+                 contacts if at all possible; it will only return fewer if the
+                 node is returning all of the contacts that it knows of.
+        @rtype: list
+        """
+        # Get the sender's ID (if any)
+        if '_rpcNodeID' in kwargs:
+            rpcSenderID = kwargs['_rpcNodeID']
+        else:
+            rpcSenderID = None
+            
+        print 'findNode called, rpc ID:', rpcSenderID
+        contacts = self._findCloseNodes(key, constants.k, rpcSenderID)
+        contactTriples = []
+        for contact in contacts:
+            contactTriples.append( (contact.id, contact.address, contact.port) )
+        return contactTriples
+
+    def _findCloseNodes(self, key, count, _rpcNodeID=None):
+        """ Finds a number of known nodes closest to the node/value with the
+        specified key.
+        
+        @param key: the 160-bit key (i.e. the node or value ID) to search for
+        @type key: str
+        @param count: the amount of contacts to return
         @type count: int
+        @param _rpcNodeID: Used during RPC, this is be the sender's Node ID
+                           Whatever ID is passed in the paramater will get
+                           excluded from the list of returned contacts.
+        @type _rpcNodeID: str
         
         @return: A list of node contacts (C{kademlia.contact.Contact instances})
                  closest to the specified key. 
@@ -86,9 +200,11 @@ class Node(object):
                  node is returning all of the contacts that it knows of.
         @rtype: list
         """
-        distance = self._distance(self.id, key)
-        bucketIndex = int(math.log(distance, 2))
-        closestNodes = self._buckets[bucketIndex].getContacts(constants.k)
+        if key == self.id:
+            bucketIndex = 0 #TODO: maybe not allow this to continue?
+        else:
+            bucketIndex = self._kbucketIndex(key)
+        closestNodes = self._buckets[bucketIndex].getContacts(constants.k, _rpcNodeID)
         # The node must return k contacts, unless it does not know at least 8
         i = 1
         canGoLower = bucketIndex-i >= 0
@@ -97,14 +213,13 @@ class Node(object):
         while len(closestNodes) < constants.k and (canGoLower or canGoHigher):
             #TODO: this may need to be optimized
             if canGoLower:
-                closestNodes.extend(self._buckets[bucketIndex-i].getContacts(constants.k - len(closestNodes)))
+                closestNodes.extend(self._buckets[bucketIndex-i].getContacts(constants.k - len(closestNodes), _rpcNodeID))
                 canGoLower = bucketIndex-(i+1) >= 0
             if canGoHigher:
-                closestNodes.extend(self._buckets[bucketIndex+i].getContacts(constants.k - len(closestNodes)))
+                closestNodes.extend(self._buckets[bucketIndex+i].getContacts(constants.k - len(closestNodes), _rpcNodeID))
                 canGoHigher = bucketIndex+(i+1) < 160
             i += 1
         return closestNodes
-        
 
     def addContact(self, contact):
         """ Add/update the given contact
@@ -118,9 +233,9 @@ class Node(object):
             If the exception is raised then a new contact has arrived
             and then the bucket should be resorted i.e. closest contacts are in bucket
         """
-        distance = self._distance(self.id, contact.id)
-        bucketIndex = int(math.log(distance, 2))
-        
+        if contact.id == self.id:
+            return
+        bucketIndex = self._kbucketIndex(contact.id)
         try:
             self._buckets[bucketIndex].addContact(contact)
         except kbucket.BucketFull, e:
@@ -135,8 +250,7 @@ class Node(object):
         
         @raise ValueError: Raised if the contact isn't found
         """
-        distance = self._distance(self.id, contact.id)
-        bucketIndex = int(math.log(distance, 2))
+        bucketIndex = self._kbucketIndex(contact.id)
         try:
             self._buckets[bucketIndex].remove(contact)
         except ValueError:
@@ -211,3 +325,22 @@ class Node(object):
         valKeyOne = long(keyOne.encode('hex'), 16)
         valKeyTwo = long(keyTwo.encode('hex'), 16)
         return valKeyOne ^ valKeyTwo
+    
+    def _kbucketIndex(self, key):
+        """ Calculate the index of the k-bucket which is responsible for the
+        specified key
+        
+        @param key: The key for which to find the appropriate k-bucket index
+        @type key: str
+        
+        @return: The index of the k-bucket responsible for the specified key
+        @rtype: int
+        """
+        distance = self._distance(self.id, key)
+        bucketIndex = int(math.log(distance, 2))
+        return bucketIndex
+    
+    def _getContact(self, contactID):
+        """ Returns the (known) contact with the specified node ID """
+        bucketIndex = self._kbucketIndex(contactID)
+        self._buckets[bucketIndex].getContact(contactID)

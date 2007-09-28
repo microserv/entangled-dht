@@ -23,12 +23,16 @@ class Contact(object):
     def __eq__(self, other):
         if isinstance(other, Contact):
             return self.id == other.id
+        elif isinstance(other, str):
+            return self.id == other
         else:
             return False
     
     def __ne__(self, other):
         if isinstance(other, Contact):
             return self.id != other.id
+        elif isinstance(other, str):
+            return self.id != other
         else:
             return True
 
@@ -47,5 +51,5 @@ class Contact(object):
         host Node's C{_protocol} object).
         """
         def _sendRPC(*args, **kwargs):
-            return self._networkProtocol.sendRPC(self, name, args)
+            return self._networkProtocol.sendRPC(self, name, args, **kwargs)
         return _sendRPC

@@ -19,9 +19,8 @@ import contact
 
 reactor = twisted.internet.selectreactor.SelectReactor()
 
-class InvalidMethod(Exception):
-    """ The requested RPC method does not exist, or is not callable """
-
+class TimeoutError(Exception):
+    """ Raised when a RPC times out """
 
 class KademliaProtocol(protocol.DatagramProtocol):
     """ Implements all low-level network-related functions of a Kademlia node """
@@ -31,17 +30,20 @@ class KademliaProtocol(protocol.DatagramProtocol):
         self._translator = msgTranslator
         self._sentMessages = {}
         
-    def sendRPC(self, contact, method, args):
+    def sendRPC(self, contact, method, args, rawResponse=False):
         """ Sends an RPC to the specified contact """
         msg = msgtypes.RequestMessage(self._node.id, method, args)
         msgPrimitive = self._translator.toPrimitive(msg)
         encodedMsg = self._encoder.encode(msgPrimitive)
+            
         df = defer.Deferred()
+        if rawResponse:
+            df._rpcRawResponse = True
         # Set the RPC timeout timer
         timeoutCall = reactor.callLater(constants.rpcTimeout, self._msgTimeout, msg.id)
         # Transmit the data
         self.transport.write(encodedMsg, (contact.address, contact.port))
-        self._sentMessages[msg.id] = (df, timeoutCall)
+        self._sentMessages[msg.id] = (contact.id, df, timeoutCall)
         return df
     
     def datagramReceived(self, datagram, address):
@@ -49,6 +51,8 @@ class KademliaProtocol(protocol.DatagramProtocol):
         message = self._translator.fromPrimitive(msgPrimitive)
         
         remoteContact = contact.Contact(message.nodeID, address[0], address[1], self)
+        # Refresh the remote node's details in the local node's k-buckets    
+        self._node.addContact(remoteContact)
 
         if isinstance(message, msgtypes.RequestMessage):
             # This is an RPC method request
@@ -57,10 +61,14 @@ class KademliaProtocol(protocol.DatagramProtocol):
             # Find the message that triggered this response
             if self._sentMessages.has_key(message.id):
                 # Cancel timeout timer for this RPC
-                df, timeoutCall = self._sentMessages[message.id]
+                df, timeoutCall = self._sentMessages[message.id][1:3]
                 timeoutCall.cancel()
                 del self._sentMessages[message.id]
-                if isinstance(message, msgtypes.ErrorMessage):
+                
+                if hasattr(df, '_rpcRawResponse'):
+                    # The RPC requested that the raw response message be returned; do not interpret it
+                    df.callback(message)
+                elif isinstance(message, msgtypes.ErrorMessage):
                     # The RPC request raised a remote exception; raise it locally
                     if message.exceptionType.startswith('exceptions.'):
                         exceptionClassName = message.exceptionType[11:]
@@ -105,9 +113,6 @@ class KademliaProtocol(protocol.DatagramProtocol):
 
     def _handleRPC(self, senderContact, rpcID, method, args):
         """ Executes a local function in response to an RPC request """
-        # Refresh the remote node's details in the local node's k-buckets    
-        self._node.addContact(senderContact)
-        
         # Set up the deferred callchain
         def handleError(f):
             self._sendError(senderContact, rpcID, f.type, f.getErrorMessage())
@@ -120,11 +125,16 @@ class KademliaProtocol(protocol.DatagramProtocol):
         df.addErrback(handleError)
         
         # Execute the RPC
-        f = getattr(self._node, method, None)
-        if callable(f) and hasattr(f, 'rpcmethod'):
+        func = getattr(self._node, method, None)
+        if callable(func) and hasattr(func, 'rpcmethod'):
             # Call the exposed Node method and return the result to the deferred callback chain
             try:
-                result = f(*args)
+                try:
+                    # Try to pass the sender's node id to the function...
+                    result = func(*args, **{'_rpcNodeID': senderContact.id})
+                except TypeError:
+                    # ...or simply call it if that fails
+                    result = func(*args)
             except Exception, e:
                 df.errback(failure.Failure(e))
             else:
@@ -137,11 +147,11 @@ class KademliaProtocol(protocol.DatagramProtocol):
         """ Called when an RPC request message times out """
         # Find the message that timed out
         if self._sentMessages.has_key(messageID):
-            df = self._sentMessages[messageID][0]
+            remoteContactID, df = self._sentMessages[messageID][0:2]
             del self._sentMessages[messageID]
             # The message's destination node is now considered to be dead;
             # raise an (asynchronous) TimeoutError exception to update the host node
-            df.errback(failure.Failure(defer.TimeoutError('RPC request timed out')))
+            df.errback(failure.Failure(TimeoutError(remoteContactID)))
         else:
             # This should never be reached
             print "ERROR: deferred timed out, but is not present in sent messages list!"

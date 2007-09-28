@@ -4,9 +4,11 @@
 # the GNU Lesser General Public License Version 3, or any later version.
 # See the COPYING file included in this archive
 
+import hashlib
 import unittest
 
 import kademlia.node
+import kademlia.constants
 
 class NodeIDTest(unittest.TestCase):
     """ Test case for the Node class's ID """
@@ -78,7 +80,6 @@ class NodeContactTest(unittest.TestCase):
     def testAddContact(self):
         """ Tests if a contact can be added and retrieved correctly """
         import kademlia.contact
-        import hashlib
         # Create the contact
         h = hashlib.sha1()
         h.update('node1')
@@ -87,15 +88,46 @@ class NodeContactTest(unittest.TestCase):
         # Now add it...
         self.node.addContact(contact)
         # ...and request the closest nodes to it using FIND_NODE
-        closestNodes = self.node.findNode(contactID)
+        closestNodes = self.node._findCloseNodes(contactID, kademlia.constants.k)
         self.failUnlessEqual(len(closestNodes), 1, 'Wrong amount of contacts returned; expected 1, got %d' % len(closestNodes))
-        self.failUnless(contact in closestNodes, 'Added contact not found by issueing FIND_NODE')
+        self.failUnless(contact in closestNodes, 'Added contact not found by issueing _findCloseNodes()')
+        
+    def testAddSelfAsContact(self):
+        """ Tests the node's behaviour when attempting to add itself as a contact """
+        import kademlia.contact
+        # Create a contact with the same ID as the local node's ID
+        contact = kademlia.contact.Contact(self.node.id, '127.0.0.1', 91824, None)
+        # Now try to add it
+        self.node.addContact(contact)
+        # ...and request the closest nodes to it using FIND_NODE
+        closestNodes = self.node._findCloseNodes(self.node.id, kademlia.constants.k)
+        self.failIf(contact in closestNodes, 'Node added itself as a contact')
+
+
+class NodeLookupTest(unittest.TestCase):
+    """ Test case for the Node class's iterative node lookup algorithm """
+    def setUp(self):
+        import kademlia.contact
+        self.node = kademlia.node.Node()
+        for i in range(10):
+            remoteID = self.node._generateID()
+            contact = kademlia.contact.Contact(remoteID, '127.0.0.1', 91826, self.node._protocol)
+            self.node.addContact(contact)
+    
+    def testIterativeFindNode(self):
+        """ Ugly brute-force test to see if the iterative node lookup algorithm runs without failing """
+        import kademlia.protocol
+        kademlia.protocol.reactor.listenUDP(91826, self.node._protocol)
+        df = self.node._iterativeFindNode(self.node.id)
+        df.addBoth(lambda _: kademlia.protocol.reactor.stop())
+        kademlia.protocol.reactor.run()
 
 def suite():
     suite = unittest.TestSuite()
     suite.addTest(unittest.makeSuite(NodeIDTest))
     suite.addTest(unittest.makeSuite(NodeDataTest))
     suite.addTest(unittest.makeSuite(NodeContactTest))
+    suite.addTest(unittest.makeSuite(NodeLookupTest))
     return suite
 
 if __name__ == '__main__':

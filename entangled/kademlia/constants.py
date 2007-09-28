@@ -17,3 +17,6 @@ k = 8
 
 # Timeout for network operations (in seconds)
 rpcTimeout = 20
+
+# Delay between iterations of iterative node lookups (for loose parallelism)  (in seconds)
+iterativeLookupDelay = rpcTimeout * 2/3

@@ -47,9 +47,8 @@ class FakeNode(object):
         on a timeout """
         df = protocol.sendRPC(contact, 'ping', {})
         def handleError(f):
-            if f.check(defer.TimeoutError):
+            if f.check(kademlia.protocol.TimeoutError):
                 self.removeContact(contact)
-                #f.trap(defer.TimeoutError)
                 return f
             else:
                 # This is some other error
@@ -88,7 +87,7 @@ class KademliaProtocolTest(unittest.TestCase):
         df.addBoth(lambda _: kademlia.protocol.reactor.stop())
         kademlia.protocol.reactor.run()
         # See if the contact was removed due to the timeout
-        self.failIf(deadContact in self.node.contacts, 'Contact was not removed after RPC timeout.')
+        self.failIf(deadContact in self.node.contacts, 'Contact was not removed after RPC timeout; check exception types.')
         # Restore the global timeout
         kademlia.constants.rpcTimeout = tempTimeout
         
