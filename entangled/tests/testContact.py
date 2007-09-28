@@ -22,9 +22,14 @@ class ContactOperatorsTest(unittest.TestCase):
         self.failUnlessEqual(self.firstContact, self.firstContactDifferentValues, 'Contacts with same IDs should be equal, even if their other values differ.')
         self.failUnlessEqual(self.secondContact, self.secondContactCopy, 'Different copies of the same Contact instance should be equal')
 
+    def testStringComparisons(self):
+        """ Test comparisons of Contact objects with str types """
+        self.failUnlessEqual('firstContactID', self.firstContact, 'The node ID string must be equal to the contact object')
+        self.failIfEqual('some random string', self.firstContact, "The tested string should not be equal to the contact object (not equal to it's ID)")
+
     def testIllogicalComparisons(self):
-        """ Test comparisons with non-Contact types """
-        for item in (123, 'test string', {'key': 'value'}):
+        """ Test comparisons with non-Contact and non-str types """
+        for item in (123, [1,2,3], {'key': 'value'}):
             self.failIfEqual(self.firstContact, item, '"eq" operator: Contact object should not be equal to %s type' % type(item).__name__)
             self.failUnless(self.firstContact != item, '"ne" operator: Contact object should not be equal to %s type' % type(item).__name__)
 
