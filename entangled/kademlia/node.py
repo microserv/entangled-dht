@@ -418,16 +418,9 @@ class Node(object):
         self._dataStore[key] = value
     
     @rpcmethod
-    def findValue(self, key):
+    def findValue(self, key, **kwargs):
         """ Return the value associated with the specified key if present in
         this node's data, otherwise execute FIND_NODE for the key
-        
-        @todo: This function will need some fixup as soon as the Protocol class is
-               implemented; for instance, the Protocol class needs to know that
-               findNode() is being called if the value isn't found... we might want
-               to start applying some custom Exceptions.
-               For this reason, I am not implementing a unit test for this function;
-               it is pretty pointless at this stage.
         
         @param key: The hashtable key of the data to return
         @type key: str
@@ -435,7 +428,7 @@ class Node(object):
         if key in self._dataStore:
             return self._dataStore[key]
         else:
-            return self.findNode(key)
+            return self.findNode(key, **kwargs)
 
     @rpcmethod
     def ping(self):
