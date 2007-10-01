@@ -64,7 +64,7 @@ class Node(object):
         else:
             bootstrapContacts = None
         # Initiate the Kademlia joining sequence - perform a search for this node's own ID
-        df = self._iterativeFindNode(self.id, bootstrapContacts)
+        df = self._iterativeFind(self.id, bootstrapContacts)
         # Refresh all k-buckets further away than this node's closest neighbour
         def getBucketAfterNeighbour(*args):
             for i in range(160):
@@ -107,7 +107,7 @@ class Node(object):
                     searchID = self._randomIDInBucketRange(bucketIndex[0])
                     self._buckets[bucketIndex[0]].lastAccessed = time.time()
                     print '  refreshing bucket',bucketIndex[0]
-                    df = self._iterativeFindNode(searchID)
+                    df = self.iterativeFindNode(searchID)
                     df.addCallback(refreshNextKBucket)
                     return
                 else:
@@ -130,12 +130,15 @@ class Node(object):
         print '=================================='
         protocol.reactor.callLater(30, self.printContacts)
 
-    def _iterativeFindNode(self, key, shortlist=None):
-        """ The basic Kademlia iterative node lookup operation
+    def _iterativeFind(self, key, shortlist=None, findValue=False):
+        """ The basic Kademlia iterative lookup operation (for nodes/values)
         
         This builds a list of k "closest" contacts through iterative use of
-        the "FIND_NODE" RPC """
-        print '\n_iterativeFindNode() called'
+        the "FIND_NODE" RPC, or if C{findValue} is set to C{True}, using the
+        "FIND_VALUE" RPC, in which case the value (if found) may be returned
+        instead of a list of contacts
+        """
+        print '\n_iterativeFind() called'
         if shortlist == None:
             shortlist = self._findCloseNodes(key, constants.alpha)
             if key != self.id:
@@ -171,13 +174,16 @@ class Node(object):
         # This should only contain one entry; the next scheduled iteration call - using a list because of Python's scope-name-binding handling
         pendingIterationCalls = []        
         
+        findValueResult = {}
+        
         def extendShortlist(responseMsg):
             """ @type responseMsg: kademlia.msgtypes.ResponseMessage """
             #print 'deferred callback to extendShortlist:'
             #print '==========='
             # Mark this node as active
             if responseMsg.nodeID not in activeContacts:
-                activeContacts.append(responseMsg.nodeID)
+                aContact = self._getContact(responseMsg.nodeID)
+                activeContacts.append(aContact)
                 if responseMsg.nodeID not in alreadyContacted:
                     # This makes sure "bootstrap"-nodes with "fake" IDs don't get queried twice
                     alreadyContacted.append(responseMsg.nodeID)
@@ -187,25 +193,39 @@ class Node(object):
                     else:
                         print 'setting closest node to a bootstrap node...'
                         closestNode[0] = self._getContact(responseMsg.nodeID)
-                        print '====>closestNode is:', closestNode[0]
-                        
+                        print '====>closestNode is:', closestNode[0]      
             # Now grow extend the shortlist with the returned contacts
             result = responseMsg.response
             #TODO: some validation on the result (for guarding against attacks)
             print '==> node returned result:',result
-            for contactTriple in result:
-                testContact = Contact(contactTriple[0], contactTriple[1], contactTriple[2], self._protocol)
-                #print 'testing for shortlist'
-                if testContact not in shortlist:
-                    #TODO: currently, the shortlist can grow to more than k entries... should probably fix this, but it isn't fatal
-                    print '....................adding new contact to shortlist:', testContact
-                    shortlist.append(testContact)
-                    if closestNode[0] != None:
-                        if self._distance(key, testContact.id) < self._distance(key, closestNode[0].id):
-                            closestNode[0] = testContact
+            
+            # If we are looking for a value, first see if this result is the value
+            # we are looking for before treating it as a list of contact triples
+            if findValue == True and type(result) == dict:
+                # We have found the value
+                findValueResult[key] = result[key]
+            else:
+                if findValue == True:
+                    # We are looking for a value, and the remote node didn't have it
+                    # - mark it as the closest "empty" node, if it is
+                    if 'closestNodeNoValue' in findValueResult:
+                        if self._distance(key, responseMsg.nodeID) < self._distance(key, closestNode[0].id):
+                            findValueResult['closestNodeNoValue'] = self._getContact(responseMsg.nodeID)
                     else:
-                        #print 'setting closest node'
-                        closestNode[0] = testContact
+                        findValueResult['closestNodeNoValue'] = self._getContact(responseMsg.nodeID)                
+
+                for contactTriple in result:
+                    testContact = Contact(contactTriple[0], contactTriple[1], contactTriple[2], self._protocol)
+                    #print 'testing for shortlist'
+                    if testContact not in shortlist:
+                        #TODO: currently, the shortlist can grow to more than k entries... should probably fix this, but it isn't fatal
+                        print '....................adding new contact to shortlist:', testContact
+                        shortlist.append(testContact)
+                        if closestNode[0] != None:
+                            if self._distance(key, testContact.id) < self._distance(key, closestNode[0].id):
+                                closestNode[0] = testContact
+                        else:
+                            closestNode[0] = testContact
             #print 'extendShortlist callback returning'
             return responseMsg.nodeID
         
@@ -238,7 +258,10 @@ class Node(object):
             while len(pendingIterationCalls):
                 del pendingIterationCalls[0]
             # See if should continue the search
-            if len(activeContacts) >= constants.k or (closestNode[0] == closestNode[1] and closestNode[0] != None):
+            if key in findValueResult:
+                print '++++++++++++++ DONE (findValue found) +++++++++++++++\n\n'
+                outerDf.callback(findValueResult[key])
+            elif len(activeContacts) >= constants.k or (closestNode[0] == closestNode[1] and closestNode[0] != None):
                 # Ok, we're done; either we have accumulated k active contacts or
                 # no improvement in closestNode has been noted
                 #print 'len(activeContacts):', len(activeContacts)
@@ -248,7 +271,7 @@ class Node(object):
                 #for contact in activeContacts:
                 #    self.addContact(contact)
                 print '++++++++++++++ DONE (test) +++++++++++++++\n\n'
-                outerDf.callback(closestNode[0])
+                outerDf.callback(activeContacts)
             else:
                 #print 'search continues...'
                 #print 'len(activeContacts):', len(activeContacts)
@@ -260,7 +283,10 @@ class Node(object):
                     if contact.id not in alreadyContacted:
                         print '...launching probe to:', contact
                         activeProbes.append(contact.id)
-                        df = contact.findNode(key, rawResponse=True)
+                        if findValue == True:
+                            df = contact.findValue(key, rawResponse=True)
+                        else:
+                            df = contact.findNode(key, rawResponse=True)
                         df.addCallback(extendShortlist)
                         df.addErrback(removeFromShortlist)
                         df.addCallback(cancelActiveProbe)
@@ -397,8 +423,46 @@ class Node(object):
             # If there's an error (i.e. timeout), remove the head contact, and append the new one
             df.addErrback(replaceContact)
 
+    def iterativeStore(self, plaintextKey, value):
+        """ The Kademlia store operation """
+        # Generate the "real" key from the plaintext one
+        h = hashlib.sha1()
+        h.update(plaintextKey)
+        key = h.digest()
+        # Prepare a callback for doing "STORE" RPC calls
+        def executeStoreRPCs(nodes):
+            for contact in nodes:
+                contact.store(key, value)
+        # Find k nodes closest to the key...
+        df = self.iterativeFindNode(key)
+        # ...and send them STORE RPCs as soon as they've been found
+        df.addCallback(executeStoreRPCs)
     
-
+    def iterativeFindNode(self, key):
+        """ The basic Kademlia node lookup operation """
+        return self._iterativeFind(key)
+    
+    def iterativeFindValue(self, key):
+        """ The Kademlia search operation """
+        # Prepare a callback for this operation
+        outerDf = defer.Deferred()
+        def checkResult(result):
+            if type(result) == dict:
+                # We have found the value; now see who was the closest contact without it...
+                if 'closestNodeNoValue' in result:
+                    # ...and store the key/value pair 
+                    contact = result['closestNodeNoValue']
+                    contact.store(key, value)
+            else:
+                # The value wasn't found, but a list of contacts was returned
+                #TODO: should we do something with this? -since our own routing table would have been updated automatically...
+                pass
+            outerDf.callback(result)
+        # Execute the search
+        df = self._iterativeFind(key, findValue=True)
+        df.addCallback(checkResult)
+        return outerDf
+        
     def removeContact(self, contact):
         """ Remove the specified contact from this node's table of known nodes
         
@@ -436,7 +500,7 @@ class Node(object):
         @type key: str
         """
         if key in self._dataStore:
-            return self._dataStore[key]
+            return {key: self._dataStore[key]}
         else:
             return self.findNode(key, **kwargs)
 

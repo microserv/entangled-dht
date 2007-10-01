@@ -122,7 +122,7 @@ class NodeLookupTest(unittest.TestCase):
         kademlia.protocol.reactor.listenUDP(91826, self.node._protocol)
         for i in range(10):
             kademlia.protocol.reactor.listenUDP(91827+i, self.remoteNodes[i]._protocol)
-        df = self.node._iterativeFindNode(self.node.id)
+        df = self.node.iterativeFindNode(self.node.id)
         df.addBoth(lambda _: kademlia.protocol.reactor.stop())
         kademlia.protocol.reactor.run()
 
