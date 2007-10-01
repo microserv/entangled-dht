@@ -109,18 +109,23 @@ class NodeLookupTest(unittest.TestCase):
     def setUp(self):
         import kademlia.contact
         self.node = kademlia.node.Node()
+        self.remoteNodes = []
         for i in range(10):
-            remoteID = self.node._generateID()
-            contact = kademlia.contact.Contact(remoteID, '127.0.0.1', 91826, self.node._protocol)
-            self.node.addContact(contact)
-    
+            remoteNode = kademlia.node.Node()
+            remoteContact = kademlia.contact.Contact(remoteNode.id, '127.0.0.1', 91827+i, self.node._protocol)
+            self.remoteNodes.append(remoteNode)
+            self.node.addContact(remoteContact)
+
     def testIterativeFindNode(self):
         """ Ugly brute-force test to see if the iterative node lookup algorithm runs without failing """
         import kademlia.protocol
         kademlia.protocol.reactor.listenUDP(91826, self.node._protocol)
+        for i in range(10):
+            kademlia.protocol.reactor.listenUDP(91827+i, self.remoteNodes[i]._protocol)
         df = self.node._iterativeFindNode(self.node.id)
         df.addBoth(lambda _: kademlia.protocol.reactor.stop())
         kademlia.protocol.reactor.run()
+
 
 def suite():
     suite = unittest.TestSuite()
