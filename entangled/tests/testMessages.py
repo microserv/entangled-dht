@@ -30,7 +30,14 @@ class DefaultFormatTranslatorTest(unittest.TestCase):
                         DefaultFormat.headerNodeID: 'node3',
                         DefaultFormat.headerMsgID: 'rpc3',
                         DefaultFormat.headerPayload: "<type 'exceptions.ValueError'>",
-                        DefaultFormat.headerArgs: 'this is a test exception'}))
+                        DefaultFormat.headerArgs: 'this is a test exception'}),
+                      
+                      (ResponseMessage('rpc4', 'node4', [('H\x89\xb0\xf4\xc9\xe6\xc5`H>\xd5\xc2\xc5\xe8Od\xf1\xca\xfa\x82', '127.0.0.1', 1919), ('\xae\x9ey\x93\xdd\xeb\xf1^\xff\xc5\x0f\xf8\xac!\x0e\x03\x9fY@{', '127.0.0.1', 1921)]),
+                       {DefaultFormat.headerType: DefaultFormat.typeResponse,
+                        DefaultFormat.headerNodeID: 'node4',
+                        DefaultFormat.headerMsgID: 'rpc4',
+                        DefaultFormat.headerPayload: [('H\x89\xb0\xf4\xc9\xe6\xc5`H>\xd5\xc2\xc5\xe8Od\xf1\xca\xfa\x82', '127.0.0.1', 1919), ('\xae\x9ey\x93\xdd\xeb\xf1^\xff\xc5\x0f\xf8\xac!\x0e\x03\x9fY@{', '127.0.0.1', 1921)]})
+                      )
         self.translator = DefaultFormat()
         self.failUnless(isinstance(self.translator, MessageTranslator), 'Translator class must inherit from kademlia.msgformat.MessageTranslator!')
 
