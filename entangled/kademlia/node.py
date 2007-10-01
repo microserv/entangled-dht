@@ -7,7 +7,7 @@
 # The docstrings in this module contain epytext markup; API documentation
 # may be created by processing this file with epydoc: http://epydoc.sf.net
 
-import hashlib, random, math
+import hashlib, random, math, time
 
 from twisted.internet import defer
 
@@ -23,13 +23,8 @@ def rpcmethod(func):
     return func
 
 class Node(object):
-    def __init__(self, knownNodeAddresses=None, dataStore=None, networkProtocol=None):
-        """
-        @param knownNodeAddresses: A sequence of tuples containing IP address
-                                   information for existing nodes on the
-                                   Kademlia network, in the format:
-                                   C{(<ip address>, (udp port>)}
-        @type knownNodeAddresses: tuple
+    def __init__(self, dataStore=None, networkProtocol=None):
+        """ constructor
         """
         self.id = self._generateID()
         # Create k-buckets (for storing contacts)
@@ -47,50 +42,174 @@ class Node(object):
         else:
             self._dataStore = dataStore
             
-    def joinNetwork(self, udpPort=81172):
+    def joinNetwork(self, udpPort=81172, knownNodeAddresses=None):
         """ Causes the Node to join the Kademlia network; this will execute
-        the Twisted reactor's main loop """
+        the Twisted reactor's main loop
+        
+        @param knownNodeAddresses: A sequence of tuples containing IP address
+                                   information for existing nodes on the
+                                   Kademlia network, in the format:
+                                   C{(<ip address>, (udp port>)}
+        @type knownNodeAddresses: tuple
+        """
+        # Prepare the underlying Kademlia protocol
         protocol.reactor.listenUDP(udpPort, self._protocol)
-        # Initiate the Kademlia joining sequence
-        df = self._iterativeFindNode(self.id)
-        #TODO: Refresh buckets
+        # Create temporary contact information for the list of addresses of known nodes
+        if knownNodeAddresses != None:
+            bootstrapContacts = []
+            for address, port in knownNodeAddresses:
+                contact = Contact(self._generateID(), address, port, self._protocol)
+                bootstrapContacts.append(contact)
+        else:
+            bootstrapContacts = None
+        # Initiate the Kademlia joining sequence - perform a search for this node's own ID
+        df = self._iterativeFindNode(self.id, bootstrapContacts)
+        # Refresh all k-buckets further away than this node's closest neighbour
+        df.addCallback(self._getClosestNeighbour)
+        df.addCallback(self._refreshKBuckets)
+        protocol.reactor.callLater(30, self.printContacts)
+        # Start refreshing k-buckets periodically, if necessary
+        #protocol.reactor.callLater(constants.checkRefreshInterval, self._refreshKBuckets)
         protocol.reactor.run()
+        
+    def _getClosestNeighbour(self, *args):
+        """ Finds the index of the k-bucket containing the information of the
+        closest neighbouring node to this node
+        @todo: this function currently returns the bucket just after the closest neighbour; rename it
+        """
+        print '_getClosestNeighbour called'
+        for i in range(160):
+            if len(self._buckets[i]) > 0:
+                return i+1
+        return 160
 
-    def _iterativeFindNode(self, key):
+    def _refreshKBuckets(self, startIndex=0, force=False):
+        """ Refreshes all k-buckets that need refreshing, starting at the
+        k-bucket with the specified index
+
+        @param startIndex: The index of the bucket to start refreshing at;
+                           this bucket and those further away from it will
+                           be refreshed. For example, when joining the
+                           network, this node will set this to the index of
+                           the bucket after the one containing it's closest
+                           neighbour.
+        @type startIndex: index
+        @param force: If this is C{True}, all buckets (in the specified range)
+                      will be refreshed, regardless of the time they were last
+                      accessed.
+        @type force: bool
+        """
+        print '======================= JOIN: refreshing buckets ==================='
+        print '_refreshKbuckets called with index:',startIndex
+        bucketIndex = []
+        bucketIndex.append(startIndex + 1)
+        outerDf = defer.Deferred()
+        def refreshNextKBucket(dfResult=None):
+            print '  refreshNexKbucket called; bucketindex is', bucketIndex[0]
+            bucketIndex[0] += 1
+            while bucketIndex[0] < 160:
+                if force or (time.time() - self._buckets[bucketIndex[0]].lastAccessed >= constants.refreshTimeout):
+                    searchID = self._randomIDInBucketRange(bucketIndex[0])
+                    self._buckets[bucketIndex[0]].lastAccessed = time.time()
+                    print '  refreshing bucket',bucketIndex[0]
+                    df = self._iterativeFindNode(searchID)
+                    df.addCallback(refreshNextKBucket)
+                    return
+                else:
+                    bucketIndex[0] += 1
+            # If this is reached, we have refreshed all the buckets
+            print '  all buckets refreshed; initiating outer deferred callback'
+            outerDf.callback(None)
+        print '_refreshKbuckets starting cycle'
+        refreshNextKBucket()
+        print '_refreshKbuckets returning'
+        return outerDf
+
+    def printContacts(self):
+        contacts = self._findCloseNodes(self.id, 100)
+        print '\n\nNODE CONTACTS\n==============='
+        for item in contacts:
+            print item
+        print '=================================='
+        protocol.reactor.callLater(30, self.printContacts)
+
+    def _iterativeFindNode(self, key, shortlist=None):
         """ The basic Kademlia iterative node lookup operation
         
         This builds a list of k "closest" contacts through iterative use of
         the "FIND_NODE" RPC """
         print '\n_iterativeFindNode() called'
-        shortlist = self._findCloseNodes(key, constants.alpha)
-        # Note the closest known node
-        #TODO: possible IndexError exception here:
-        closestNode = [shortlist[0], None] # format: [<current closest node>, <previous closest node>]
-        for contact in shortlist:
-            if self._distance(key, contact.id) < self._distance(key, closestNode[0].id):
-                closestNode[0] = contact
-    
+        if shortlist == None:
+            shortlist = self._findCloseNodes(key, constants.alpha)
+            if len(shortlist) == 0:
+                # This node doesn't know of any other nodes
+                fakeDf = defer.Deferred()
+                fakeDf.callback(None)
+                print '...exiting due to no known nodes'
+                return fakeDf
+            # Note the closest known node
+            #TODO: possible IndexError exception here:
+            closestNode = [shortlist[0], None] # format: [<current closest node>, <previous closest node>]
+            for contact in shortlist:
+                if self._distance(key, contact.id) < self._distance(key, closestNode[0].id):
+                    closestNode[0] = contact
+        else:
+            # This is used during the bootstrap process; node ID's are most probably fake
+            shortlist = shortlist
+            closestNode = [None, None]
+            print 'using a bootstrap shortlist:', shortlist
+        
+        print '\n++++++++ START OF ITERATIVE SEARCH +++++++++'
+        # List of contact IDs that have already been queried
+        alreadyContacted = []
+        # List of active queries; len() indicates number of active probes
+        # - using a list for this, because Python doesn't allow binding a new value to a name in an enclosing (non-global) scope
+        activeProbes = []
+        # A list of known-to-be-active remote nodes
+        activeContacts = []
+        # This should only contain one entry; the next scheduled iteration call - using a list because of Python's scope-name-binding handling
+        pendingIterationCalls = []        
+        
         def extendShortlist(responseMsg):
             #print 'deferred callback to extendShortlist:'
             #print '==========='
             # Mark this node as active
             if responseMsg.nodeID not in activeContacts:
                 activeContacts.append(responseMsg.nodeID)
+                if responseMsg.nodeID not in alreadyContacted:
+                    # This makes sure "bootstrap"-nodes with "fake" IDs don't get queried twice
+                    alreadyContacted.append(responseMsg.nodeID)
+                    if closestNode[0] != None:
+                        if self._distance(key, responseMsg.nodeID) < self._distance(key, closestNode[0].id):
+                            closestNode[0] = self._getContact(responseMsg.nodeID)
+                    else:
+                        print 'setting closest node to a bootstrap node...'
+                        closestNode[0] = self._getContact(responseMsg.nodeID)
+                        print '====>closestNode is:', closestNode[0]
+                        
             # Now grow extend the shortlist with the returned contacts
             result = responseMsg.response
             #TODO: some validation on the result (for guarding against attacks)
+            print '==> node returned result:',result
             for contactTriple in result:
                 testContact = Contact(contactTriple[0], contactTriple[1], contactTriple[2], self._protocol)
+                #print 'testing for shortlist'
                 if testContact not in shortlist:
                     #TODO: currently, the shortlist can grow to more than k entries... should probably fix this, but it isn't fatal
+                    print '....................adding new contact to shortlist:', testContact
                     shortlist.append(testContact)
-                    if self._distance(key, testContact.id) < self._distance(key, closestNode[0].id):
+                    if closestNode[0] != None:
+                        if self._distance(key, testContact.id) < self._distance(key, closestNode[0].id):
+                            closestNode[0] = testContact
+                    else:
+                        #print 'setting closest node'
                         closestNode[0] = testContact
+            #print 'extendShortlist callback returning'
             return responseMsg.nodeID
         
         def removeFromShortlist(failure):
-            #print 'deferred errback to extendShortlist:', failure
-            #print '==========='
+            print 'deferred errback to extendShortlist:', failure
+            print '==========='
             failure.trap(protocol.TimeoutError)
             deadContactID = failure.getErrorMessage()
             if deadContactID in shortlist:
@@ -98,41 +217,44 @@ class Node(object):
             return deadContactID  
                 
         def cancelActiveProbe(contactID):
-            #if contactID in activeProbes:
-                #activeProbes.remove(contactID)
+            #print 'probe ending...'
             activeProbes.pop()
             if len(activeProbes) == 0 and len(pendingIterationCalls):
+                #print 'forcing iteration'
                 # Force the iteration
                 pendingIterationCalls[0].cancel()
+                pendingIterationCalls.pop()
                 searchIteration()
+            else:
+                #print 'NOT CANCELLING CALL'
+                print len(activeProbes)
+                print len(pendingIterationCalls)
+            #print 'probe inactive. count is:', len(activeProbes)
 
         # Send parallel, asynchronous FIND_NODE RPCs to the shortlist of contacts
-        alreadyContacted = []
-        activeProbes = []
-        # A list of known-to-be-active remote nodes
-        activeContacts = []
-        pendingIterationCalls = []
-        #print 'closestNode:', closestNode[0]
-        #print 'previousClosestNode:', closestNode[1]
         def searchIteration():
             # See if should continue the search
-            if len(activeContacts) >= constants.k or closestNode[0] == closestNode[1]:
+            if len(activeContacts) >= constants.k or (closestNode[0] == closestNode[1] and closestNode[0] != None):
                 # Ok, we're done; either we have accumulated k active contacts or
                 # no improvement in closestNode has been noted
-                print 'len(activeContacts):', len(activeContacts)
-                print 'closestNode:', closestNode[0]
-                print 'previousClosestNode:', closestNode[1]
+                #print 'len(activeContacts):', len(activeContacts)
+                #print 'closestNode:', closestNode[0]
+                #print 'previousClosestNode:', closestNode[1]
                 #print '!!!!!!!ADDING CONTACTS!!!!!!!!!!'
                 #for contact in activeContacts:
                 #    self.addContact(contact)
-                print 'stopping iterations....'
+                print '++++++++++++++ DONE (test) +++++++++++++++\n\n'
                 outerDf.callback(closestNode[0])
             else:
+                #print 'search continues...'
+                #print 'len(activeContacts):', len(activeContacts)
+                #print 'closestNode:', closestNode[0]
+                #print 'previousClosestNode:', closestNode[1]
                 # The search continues...
                 contactedNow = 0
                 for contact in shortlist:
                     if contact.id not in alreadyContacted:
-                        print 'adding probe to list...'
+                        print '...launching probe to:', contact
                         activeProbes.append(contact.id)
                         df = contact.findNode(key, rawResponse=True)
                         df.addCallback(extendShortlist)
@@ -141,11 +263,16 @@ class Node(object):
                         alreadyContacted.append(contact.id)
                         contactedNow += 1
                     if contactedNow == constants.alpha:
-                        break
+                        break                    
                 closestNode[1] = closestNode[0]
-                # Schedule the next iteration (Kademlia uses loose parallelism)
-                call = protocol.reactor.callLater(constants.iterativeLookupDelay, searchIteration)
-                pendingIterationCalls.append(call)
+                if contactedNow > 0:
+                    # Schedule the next iteration (Kademlia uses loose parallelism)
+                    call = protocol.reactor.callLater(constants.iterativeLookupDelay, searchIteration)
+                    pendingIterationCalls.append(call)
+                else:
+                    print '++++++++++++++ DONE (logically) +++++++++++++\n\n'
+                    # If no probes were sent, there will not be any improvement, so we're done
+                    outerDf.callback(closestNode[0])
                 
         outerDf = defer.Deferred()
         # Start the iterations
@@ -173,11 +300,16 @@ class Node(object):
         else:
             rpcSenderID = None
             
-        print 'findNode called, rpc ID:', rpcSenderID
+        #print 'findNode called, rpc ID:', rpcSenderID
         contacts = self._findCloseNodes(key, constants.k, rpcSenderID)
         contactTriples = []
         for contact in contacts:
             contactTriples.append( (contact.id, contact.address, contact.port) )
+            
+            
+        #print '((((((((((((( RPC findNode )))))))))))))'
+        #print 'returning:', contactTriples
+        #print '))))))))))))))))(((((((((((((((((((((((('
         return contactTriples
 
     def _findCloseNodes(self, key, count, _rpcNodeID=None):
@@ -235,6 +367,8 @@ class Node(object):
         """
         if contact.id == self.id:
             return
+        
+        #print 'ADDING CONTACT:', contact
         bucketIndex = self._kbucketIndex(contact.id)
         try:
             self._buckets[bucketIndex].addContact(contact)
@@ -340,7 +474,41 @@ class Node(object):
         bucketIndex = int(math.log(distance, 2))
         return bucketIndex
     
+    def _randomIDInBucketRange(self, bucketIndex):
+        """ Returns a random ID in the specified k-bucket's range
+        
+        @param bucketIndex: The index of the k-bucket to use
+        @type bucketIndex: int
+        """
+        def makeIDString(distance):
+            id = hex(distance)[2:]
+            if id[-1] == 'L':
+                id = id[:-1]
+            if len(id) % 2 != 0:
+                id = '0' + id
+            id = id.decode('hex')
+            id = (20 - len(id))*'\x00' + id
+            return id
+        min = math.pow(2, bucketIndex)
+        max = math.pow(2, bucketIndex+1)
+        distance = random.randrange(min, max)
+        distanceStr = makeIDString(distance)
+        randomID = makeIDString(self._distance(distanceStr, self.id))
+        return randomID
+    
     def _getContact(self, contactID):
         """ Returns the (known) contact with the specified node ID """
         bucketIndex = self._kbucketIndex(contactID)
-        self._buckets[bucketIndex].getContact(contactID)
+        return self._buckets[bucketIndex].getContact(contactID)
+
+import sys
+if __name__ == '__main__':
+    if len(sys.argv) < 2:
+        print 'Usage:\n%s UDP_PORT KNOWN_NODE_IP  KNOWN_NODE_PORT' % sys.argv[0]
+        sys.exit(1)
+    node = Node()
+    if len(sys.argv) == 4:
+        knownNodes = [(sys.argv[2], int(sys.argv[3]))]
+    else:
+        knownNodes = None
+    node.joinNetwork(int(sys.argv[1]), knownNodes)
