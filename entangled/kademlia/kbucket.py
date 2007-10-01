@@ -18,6 +18,7 @@ class KBucket(object):
     """
     def __init__(self):
         self._contacts = list()
+        self.lastAccessed = 0
 
     def addContact(self, contact):
         """ Add contact to _contact list in the right order. This will move the
@@ -104,3 +105,6 @@ class KBucket(object):
         """ Get the contact specified node ID"""
         index = self._contacts.index(contactID)
         return self._contacts[index]
+    
+    def __len__(self):
+        return len(self._contacts)
