@@ -41,7 +41,8 @@ class Node(object):
             self._dataStore = datastore.DataStore()
         else:
             self._dataStore = dataStore
-             
+        self._pendingContactReplacements = {}
+
     def joinNetwork(self, udpPort=81172, knownNodeAddresses=None):
         """ Causes the Node to join the Kademlia network; this will execute
         the Twisted reactor's main loop
@@ -376,7 +377,20 @@ class Node(object):
             self._buckets[bucketIndex].addContact(contact)
         except kbucket.BucketFull, e:
             print 'addContact(): Warning: ', e
-            updateContacts(contact)
+            # Ping the least-recently seen contact in this k-bucket
+            headContact = self._buckets[bucketIndex]._contacts[0]
+            df = headContact.ping()
+            self._pendingContactReplacements[headContact.id] = contact
+            # If there's an error (i.e. timeout), remove the head contact, and append the new one
+            df.addErrback(self._replaceContact)
+
+    def _replaceContact(self, contactID):
+        # Remove the old contact...
+        bucketIndex = self._kbucketIndex(contactID)
+        self._buckets[bucketIndex].remove(contactID)
+        # ...and add the new one at the tail of the bucket
+        self.addContact(self._pendingContactReplacements[contactID])
+        del self._pendingContactReplacements[contactID]
 
     def removeContact(self, contact):
         """ Remove the specified contact from this node's table of known nodes
@@ -392,17 +406,6 @@ class Node(object):
         except ValueError:
             print 'removeContact(): Warning: ', e
             raise
-
-    def updateContacts(self, contact):
-        """ Update all current contacts in bucket by sending a ping request to all of them
-            Then determine the closest set of contacts
-        """
-        contactList = self._buckets.getContacts("ALL")
-        for currentContact in contactList:
-            # PING(currentContact)
-            pass
-        
-        # COMPARE RTT (round trip time)
 
     @rpcmethod
     def store(self, key, value):
