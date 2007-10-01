@@ -22,7 +22,7 @@ rpcTimeout = 20
 iterativeLookupDelay = rpcTimeout * 2/3
 
 # If a k-bucket has not been used for this amount of time, refresh it (in seconds)
-refreshTimeout = 60
+refreshTimeout = 3600
 
 # The interval in which the node should check its whether any buckets need refreshing (in seconds)
-checkRefreshInterval = refreshTimeout/4
+checkRefreshInterval = refreshTimeout/5

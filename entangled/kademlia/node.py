@@ -41,7 +41,7 @@ class Node(object):
             self._dataStore = datastore.DataStore()
         else:
             self._dataStore = dataStore
-            
+             
     def joinNetwork(self, udpPort=81172, knownNodeAddresses=None):
         """ Causes the Node to join the Kademlia network; this will execute
         the Twisted reactor's main loop
@@ -69,7 +69,7 @@ class Node(object):
         df.addCallback(self._refreshKBuckets)
         protocol.reactor.callLater(30, self.printContacts)
         # Start refreshing k-buckets periodically, if necessary
-        #protocol.reactor.callLater(constants.checkRefreshInterval, self._refreshKBuckets)
+        protocol.reactor.callLater(constants.checkRefreshInterval, self._refreshKBuckets, 0, False, True)
         protocol.reactor.run()
         
     def _getClosestNeighbour(self, *args):
@@ -83,7 +83,7 @@ class Node(object):
                 return i+1
         return 160
 
-    def _refreshKBuckets(self, startIndex=0, force=False):
+    def _refreshKBuckets(self, startIndex=0, force=False, scheduleNextCall=False):
         """ Refreshes all k-buckets that need refreshing, starting at the
         k-bucket with the specified index
 
@@ -123,6 +123,8 @@ class Node(object):
         print '_refreshKbuckets starting cycle'
         refreshNextKBucket()
         print '_refreshKbuckets returning'
+        if scheduleNextCall:
+            protocol.reactor.callLater(constants.checkRefreshInterval, self._refreshKBuckets, 0, False, True)
         return outerDf
 
     def printContacts(self):
