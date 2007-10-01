@@ -41,7 +41,7 @@ class Node(object):
             self._dataStore = datastore.DataStore()
         else:
             self._dataStore = dataStore
-        self._pendingContactReplacements = {}
+        #self._pendingContactReplacements = {}
 
     def joinNetwork(self, udpPort=81172, knownNodeAddresses=None):
         """ Causes the Node to join the Kademlia network; this will execute
@@ -66,23 +66,17 @@ class Node(object):
         # Initiate the Kademlia joining sequence - perform a search for this node's own ID
         df = self._iterativeFindNode(self.id, bootstrapContacts)
         # Refresh all k-buckets further away than this node's closest neighbour
-        df.addCallback(self._getClosestNeighbour)
+        def getBucketAfterNeighbour(*args):
+            for i in range(160):
+                if len(self._buckets[i]) > 0:
+                    return i+1
+            return 160
+        df.addCallback(getBucketAfterNeighbour)
         df.addCallback(self._refreshKBuckets)
         protocol.reactor.callLater(30, self.printContacts)
         # Start refreshing k-buckets periodically, if necessary
         protocol.reactor.callLater(constants.checkRefreshInterval, self._refreshKBuckets, 0, False, True)
         protocol.reactor.run()
-        
-    def _getClosestNeighbour(self, *args):
-        """ Finds the index of the k-bucket containing the information of the
-        closest neighbouring node to this node
-        @todo: this function currently returns the bucket just after the closest neighbour; rename it
-        """
-        print '_getClosestNeighbour called'
-        for i in range(160):
-            if len(self._buckets[i]) > 0:
-                return i+1
-        return 160
 
     def _refreshKBuckets(self, startIndex=0, force=False, scheduleNextCall=False):
         """ Refreshes all k-buckets that need refreshing, starting at the
@@ -144,6 +138,10 @@ class Node(object):
         print '\n_iterativeFindNode() called'
         if shortlist == None:
             shortlist = self._findCloseNodes(key, constants.alpha)
+            if key != self.id:
+                # Update the "last accessed" timestamp for the appropriate k-bucket
+                bucketIndex = self._kbucketIndex(key)
+                self._buckets[bucketIndex].lastAccessed = time.time()
             if len(shortlist) == 0:
                 # This node doesn't know of any other nodes
                 fakeDf = defer.Deferred()
@@ -174,6 +172,7 @@ class Node(object):
         pendingIterationCalls = []        
         
         def extendShortlist(responseMsg):
+            """ @type responseMsg: kademlia.msgtypes.ResponseMessage """
             #print 'deferred callback to extendShortlist:'
             #print '==========='
             # Mark this node as active
@@ -211,8 +210,8 @@ class Node(object):
             return responseMsg.nodeID
         
         def removeFromShortlist(failure):
-            print 'deferred errback to extendShortlist:', failure
-            print '==========='
+            """ @type failure: twisted.python.failure.Failure """
+            print '=== timeout ==='
             failure.trap(protocol.TimeoutError)
             deadContactID = failure.getErrorMessage()
             if deadContactID in shortlist:
@@ -220,13 +219,13 @@ class Node(object):
             return deadContactID  
                 
         def cancelActiveProbe(contactID):
-            #print 'probe ending...'
+            #print '.........probe ending...'
             activeProbes.pop()
             if len(activeProbes) == 0 and len(pendingIterationCalls):
                 #print 'forcing iteration'
                 # Force the iteration
                 pendingIterationCalls[0].cancel()
-                pendingIterationCalls.pop()
+                del pendingIterationCalls[0]
                 searchIteration()
             else:
                 #print 'NOT CANCELLING CALL'
@@ -236,6 +235,8 @@ class Node(object):
 
         # Send parallel, asynchronous FIND_NODE RPCs to the shortlist of contacts
         def searchIteration():
+            while len(pendingIterationCalls):
+                del pendingIterationCalls[0]
             # See if should continue the search
             if len(activeContacts) >= constants.k or (closestNode[0] == closestNode[1] and closestNode[0] != None):
                 # Ok, we're done; either we have accumulated k active contacts or
@@ -268,7 +269,7 @@ class Node(object):
                     if contactedNow == constants.alpha:
                         break                    
                 closestNode[1] = closestNode[0]
-                if contactedNow > 0:
+                if contactedNow > 0 or len(activeProbes) > 0:
                     # Schedule the next iteration (Kademlia uses loose parallelism)
                     call = protocol.reactor.callLater(constants.iterativeLookupDelay, searchIteration)
                     pendingIterationCalls.append(call)
@@ -377,20 +378,26 @@ class Node(object):
             self._buckets[bucketIndex].addContact(contact)
         except kbucket.BucketFull, e:
             print 'addContact(): Warning: ', e
+            headContact = self._buckets[bucketIndex]._contacts[0]
+            
+            def replaceContact(self, failure):
+                """ @type failure: twisted.python.failure.Failure """
+                failure.trap(protocol.TimeoutError)
+                contactID = failure.getErrorMessage()
+                # Remove the old contact...
+                bucketIndex = self._kbucketIndex(contactID)
+                self._buckets[bucketIndex].remove(contactID)
+                # ...and add the new one at the tail of the bucket
+                self.addContact(contact)
+            
             # Ping the least-recently seen contact in this k-bucket
             headContact = self._buckets[bucketIndex]._contacts[0]
             df = headContact.ping()
-            self._pendingContactReplacements[headContact.id] = contact
+            #self._pendingContactReplacements[headContact.id] = contact
             # If there's an error (i.e. timeout), remove the head contact, and append the new one
-            df.addErrback(self._replaceContact)
+            df.addErrback(replaceContact)
 
-    def _replaceContact(self, contactID):
-        # Remove the old contact...
-        bucketIndex = self._kbucketIndex(contactID)
-        self._buckets[bucketIndex].remove(contactID)
-        # ...and add the new one at the tail of the bucket
-        self.addContact(self._pendingContactReplacements[contactID])
-        del self._pendingContactReplacements[contactID]
+    
 
     def removeContact(self, contact):
         """ Remove the specified contact from this node's table of known nodes
