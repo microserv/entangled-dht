@@ -16,7 +16,9 @@ class BencodeTest(unittest.TestCase):
         self.cases = ((42, 'i42e'),
                       ('spam', '4:spam'),
                       (['spam',42], 'l4:spami42ee'),
-                      ({'foo':42, 'bar':'spam'}, 'd3:bar4:spam3:fooi42ee'))
+                      ({'foo':42, 'bar':'spam'}, 'd3:bar4:spam3:fooi42ee'),
+                      # ...and now the "real life" tests
+                      ([['abc', '127.0.0.1', 1919], ['def', '127.0.0.1', 1921]], 'll3:abc9:127.0.0.1i1919eel3:def9:127.0.0.1i1921eee'))
                       
     def testEncoder(self):
         """ Tests the bencode encoder """

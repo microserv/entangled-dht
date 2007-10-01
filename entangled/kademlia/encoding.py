@@ -92,11 +92,14 @@ class Bencode(Encoding):
             return (int(data[startIndex+1:endPos]), endPos+1)
         elif data[startIndex] == 'l':
             startIndex += 1
+            debugData = data[startIndex:]
             decodedList = []
             while data[startIndex] != 'e':
+                debugData = data[startIndex:]
                 listData, startIndex = Bencode._decodeRecursive(data, startIndex)
+                debugData = data[startIndex:]
                 decodedList.append(listData)
-            return (decodedList, startIndex)
+            return (decodedList, startIndex+1)
         elif data[startIndex] == 'd':
             startIndex += 1
             decodedDict = {}
