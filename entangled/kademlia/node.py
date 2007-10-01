@@ -78,49 +78,6 @@ class Node(object):
         protocol.reactor.callLater(constants.checkRefreshInterval, self._refreshKBuckets, 0, False, True)
         protocol.reactor.run()
 
-    def _refreshKBuckets(self, startIndex=0, force=False, scheduleNextCall=False):
-        """ Refreshes all k-buckets that need refreshing, starting at the
-        k-bucket with the specified index
-
-        @param startIndex: The index of the bucket to start refreshing at;
-                           this bucket and those further away from it will
-                           be refreshed. For example, when joining the
-                           network, this node will set this to the index of
-                           the bucket after the one containing it's closest
-                           neighbour.
-        @type startIndex: index
-        @param force: If this is C{True}, all buckets (in the specified range)
-                      will be refreshed, regardless of the time they were last
-                      accessed.
-        @type force: bool
-        """
-        print '======================= JOIN: refreshing buckets ==================='
-        print '_refreshKbuckets called with index:',startIndex
-        bucketIndex = []
-        bucketIndex.append(startIndex + 1)
-        outerDf = defer.Deferred()
-        def refreshNextKBucket(dfResult=None):
-            print '  refreshNexKbucket called; bucketindex is', bucketIndex[0]
-            bucketIndex[0] += 1
-            while bucketIndex[0] < 160:
-                if force or (time.time() - self._buckets[bucketIndex[0]].lastAccessed >= constants.refreshTimeout):
-                    searchID = self._randomIDInBucketRange(bucketIndex[0])
-                    self._buckets[bucketIndex[0]].lastAccessed = time.time()
-                    print '  refreshing bucket',bucketIndex[0]
-                    df = self.iterativeFindNode(searchID)
-                    df.addCallback(refreshNextKBucket)
-                    return
-                else:
-                    bucketIndex[0] += 1
-            # If this is reached, we have refreshed all the buckets
-            print '  all buckets refreshed; initiating outer deferred callback'
-            outerDf.callback(None)
-        print '_refreshKbuckets starting cycle'
-        refreshNextKBucket()
-        print '_refreshKbuckets returning'
-        if scheduleNextCall:
-            protocol.reactor.callLater(constants.checkRefreshInterval, self._refreshKBuckets, 0, False, True)
-        return outerDf
 
     def printContacts(self):
         contacts = self._findCloseNodes(self.id, 100)
@@ -130,6 +87,224 @@ class Node(object):
         print '=================================='
         protocol.reactor.callLater(30, self.printContacts)
 
+
+    def iterativeStore(self, plaintextKey, value):
+        """ The Kademlia store operation """
+        # Generate the "real" key from the plaintext one
+        h = hashlib.sha1()
+        h.update(plaintextKey)
+        key = h.digest()
+        # Prepare a callback for doing "STORE" RPC calls
+        def executeStoreRPCs(nodes):
+            for contact in nodes:
+                contact.store(key, value)
+        # Find k nodes closest to the key...
+        df = self.iterativeFindNode(key)
+        # ...and send them STORE RPCs as soon as they've been found
+        df.addCallback(executeStoreRPCs)
+    
+    def iterativeFindNode(self, key):
+        """ The basic Kademlia node lookup operation """
+        return self._iterativeFind(key)
+    
+    def iterativeFindValue(self, key):
+        """ The Kademlia search operation """
+        # Prepare a callback for this operation
+        outerDf = defer.Deferred()
+        def checkResult(result):
+            if type(result) == dict:
+                # We have found the value; now see who was the closest contact without it...
+                if 'closestNodeNoValue' in result:
+                    # ...and store the key/value pair 
+                    contact = result['closestNodeNoValue']
+                    contact.store(key, value)
+            else:
+                # The value wasn't found, but a list of contacts was returned
+                #TODO: should we do something with this? -since our own routing table would have been updated automatically...
+                pass
+            outerDf.callback(result)
+        # Execute the search
+        df = self._iterativeFind(key, findValue=True)
+        df.addCallback(checkResult)
+        return outerDf
+    
+    def addContact(self, contact):
+        """ Add/update the given contact
+
+        @param contact: kademlia.contact.Contact 
+        @note: It is assumed that the bucket is -
+            1) the contact is alive - timeout stuff sorted before method called!
+            2) not full
+            3) contact is in list
+
+            If the exception is raised then a new contact has arrived
+            and then the bucket should be resorted i.e. closest contacts are in bucket
+        """
+        if contact.id == self.id:
+            return
+        
+        #print 'ADDING CONTACT:', contact
+        bucketIndex = self._kbucketIndex(contact.id)
+        try:
+            self._buckets[bucketIndex].addContact(contact)
+        except kbucket.BucketFull, e:
+            print 'addContact(): Warning: ', e
+            headContact = self._buckets[bucketIndex]._contacts[0]
+            
+            def replaceContact(self, failure):
+                """ @type failure: twisted.python.failure.Failure """
+                failure.trap(protocol.TimeoutError)
+                contactID = failure.getErrorMessage()
+                # Remove the old contact...
+                bucketIndex = self._kbucketIndex(contactID)
+                self._buckets[bucketIndex].remove(contactID)
+                # ...and add the new one at the tail of the bucket
+                self.addContact(contact)
+            
+            # Ping the least-recently seen contact in this k-bucket
+            headContact = self._buckets[bucketIndex]._contacts[0]
+            df = headContact.ping()
+            #self._pendingContactReplacements[headContact.id] = contact
+            # If there's an error (i.e. timeout), remove the head contact, and append the new one
+            df.addErrback(replaceContact)
+    
+    def removeContact(self, contact):
+        """ Remove the specified contact from this node's table of known nodes
+        
+        @param contact: The contact to remove
+        @type contact: kademlia.contact.Contact
+        
+        @raise ValueError: Raised if the contact isn't found
+        """
+        bucketIndex = self._kbucketIndex(contact.id)
+        try:
+            self._buckets[bucketIndex].remove(contact)
+        except ValueError:
+            print 'removeContact(): Warning: ', e
+            raise
+
+    @rpcmethod
+    def ping(self):
+        """ Used to verify contact between two Kademlia nodes """
+        return 'pong'
+
+    @rpcmethod
+    def store(self, key, value):
+        """ Store the received data in the local hash table
+        
+        @todo: Since the data (value) may be large, passing it around as a buffer
+               (which is the case currently) might not be a good idea... will have
+               to fix this (perhaps use a stream from the Protocol class?)
+               Please comment on the relevant Trac ticket (or open a new one) if you
+               have ideas
+               -Francois
+        """
+        self._dataStore[key] = value
+
+    @rpcmethod
+    def findNode(self, key, **kwargs):
+        """ Finds a number of known nodes closest to the node/value with the
+        specified key.
+        
+        @param key: the 160-bit key (i.e. the node or value ID) to search for
+        @type key: str
+        
+        @return: A list of contact triples closest to the specified key. 
+                 This method will return C{k} (or C{count}, if specified)
+                 contacts if at all possible; it will only return fewer if the
+                 node is returning all of the contacts that it knows of.
+        @rtype: list
+        """
+        # Get the sender's ID (if any)
+        if '_rpcNodeID' in kwargs:
+            rpcSenderID = kwargs['_rpcNodeID']
+        else:
+            rpcSenderID = None
+        contacts = self._findCloseNodes(key, constants.k, rpcSenderID)
+        contactTriples = []
+        for contact in contacts:
+            contactTriples.append( (contact.id, contact.address, contact.port) )
+        return contactTriples
+
+    @rpcmethod
+    def findValue(self, key, **kwargs):
+        """ Return the value associated with the specified key if present in
+        this node's data, otherwise execute FIND_NODE for the key
+        
+        @param key: The hashtable key of the data to return
+        @type key: str
+        """
+        if key in self._dataStore:
+            return {key: self._dataStore[key]}
+        else:
+            return self.findNode(key, **kwargs)
+
+    def _distance(self, keyOne, keyTwo):
+        """ Calculate the XOR result between two string variables
+        
+        @return: XOR result of two long variables
+        @rtype: long
+        """
+        valKeyOne = long(keyOne.encode('hex'), 16)
+        valKeyTwo = long(keyTwo.encode('hex'), 16)
+        return valKeyOne ^ valKeyTwo
+
+    def _findCloseNodes(self, key, count, _rpcNodeID=None):
+        """ Finds a number of known nodes closest to the node/value with the
+        specified key.
+        
+        @param key: the 160-bit key (i.e. the node or value ID) to search for
+        @type key: str
+        @param count: the amount of contacts to return
+        @type count: int
+        @param _rpcNodeID: Used during RPC, this is be the sender's Node ID
+                           Whatever ID is passed in the paramater will get
+                           excluded from the list of returned contacts.
+        @type _rpcNodeID: str
+        
+        @return: A list of node contacts (C{kademlia.contact.Contact instances})
+                 closest to the specified key. 
+                 This method will return C{k} (or C{count}, if specified)
+                 contacts if at all possible; it will only return fewer if the
+                 node is returning all of the contacts that it knows of.
+        @rtype: list
+        """
+        if key == self.id:
+            bucketIndex = 0 #TODO: maybe not allow this to continue?
+        else:
+            bucketIndex = self._kbucketIndex(key)
+        closestNodes = self._buckets[bucketIndex].getContacts(constants.k, _rpcNodeID)
+        # The node must return k contacts, unless it does not know at least 8
+        i = 1
+        canGoLower = bucketIndex-i >= 0
+        canGoHigher = bucketIndex+i < 160
+        # Fill up the node list to k nodes, starting with the closest neighbouring nodes known 
+        while len(closestNodes) < constants.k and (canGoLower or canGoHigher):
+            #TODO: this may need to be optimized
+            if canGoLower:
+                closestNodes.extend(self._buckets[bucketIndex-i].getContacts(constants.k - len(closestNodes), _rpcNodeID))
+                canGoLower = bucketIndex-(i+1) >= 0
+            if canGoHigher:
+                closestNodes.extend(self._buckets[bucketIndex+i].getContacts(constants.k - len(closestNodes), _rpcNodeID))
+                canGoHigher = bucketIndex+(i+1) < 160
+            i += 1
+        return closestNodes
+
+    def _generateID(self):
+        """ Generates a 160-bit pseudo-random identifier
+        
+        @return: A globally unique 160-bit pseudo-random identifier
+        @rtype: str
+        """
+        hash = hashlib.sha1()
+        hash.update(str(random.getrandbits(255)))  
+        return hash.digest()
+    
+    def _getContact(self, contactID):
+        """ Returns the (known) contact with the specified node ID """
+        bucketIndex = self._kbucketIndex(contactID)
+        return self._buckets[bucketIndex].getContact(contactID)
+    
     def _iterativeFind(self, key, shortlist=None, findValue=False):
         """ The basic Kademlia iterative lookup operation (for nodes/values)
         
@@ -308,226 +483,6 @@ class Node(object):
         # Start the iterations
         searchIteration()
         return outerDf
-
-
-    @rpcmethod
-    def findNode(self, key, **kwargs):
-        """ Finds a number of known nodes closest to the node/value with the
-        specified key.
-        
-        @param key: the 160-bit key (i.e. the node or value ID) to search for
-        @type key: str
-        
-        @return: A list of contact triples closest to the specified key. 
-                 This method will return C{k} (or C{count}, if specified)
-                 contacts if at all possible; it will only return fewer if the
-                 node is returning all of the contacts that it knows of.
-        @rtype: list
-        """
-        # Get the sender's ID (if any)
-        if '_rpcNodeID' in kwargs:
-            rpcSenderID = kwargs['_rpcNodeID']
-        else:
-            rpcSenderID = None
-            
-        #print 'findNode called, rpc ID:', rpcSenderID
-        contacts = self._findCloseNodes(key, constants.k, rpcSenderID)
-        contactTriples = []
-        for contact in contacts:
-            contactTriples.append( (contact.id, contact.address, contact.port) )
-            
-            
-        #print '((((((((((((( RPC findNode )))))))))))))'
-        #print 'returning:', contactTriples
-        #print '))))))))))))))))(((((((((((((((((((((((('
-        return contactTriples
-
-    def _findCloseNodes(self, key, count, _rpcNodeID=None):
-        """ Finds a number of known nodes closest to the node/value with the
-        specified key.
-        
-        @param key: the 160-bit key (i.e. the node or value ID) to search for
-        @type key: str
-        @param count: the amount of contacts to return
-        @type count: int
-        @param _rpcNodeID: Used during RPC, this is be the sender's Node ID
-                           Whatever ID is passed in the paramater will get
-                           excluded from the list of returned contacts.
-        @type _rpcNodeID: str
-        
-        @return: A list of node contacts (C{kademlia.contact.Contact instances})
-                 closest to the specified key. 
-                 This method will return C{k} (or C{count}, if specified)
-                 contacts if at all possible; it will only return fewer if the
-                 node is returning all of the contacts that it knows of.
-        @rtype: list
-        """
-        if key == self.id:
-            bucketIndex = 0 #TODO: maybe not allow this to continue?
-        else:
-            bucketIndex = self._kbucketIndex(key)
-        closestNodes = self._buckets[bucketIndex].getContacts(constants.k, _rpcNodeID)
-        # The node must return k contacts, unless it does not know at least 8
-        i = 1
-        canGoLower = bucketIndex-i >= 0
-        canGoHigher = bucketIndex+i < 160
-        # Fill up the node list to k nodes, starting with the closest neighbouring nodes known 
-        while len(closestNodes) < constants.k and (canGoLower or canGoHigher):
-            #TODO: this may need to be optimized
-            if canGoLower:
-                closestNodes.extend(self._buckets[bucketIndex-i].getContacts(constants.k - len(closestNodes), _rpcNodeID))
-                canGoLower = bucketIndex-(i+1) >= 0
-            if canGoHigher:
-                closestNodes.extend(self._buckets[bucketIndex+i].getContacts(constants.k - len(closestNodes), _rpcNodeID))
-                canGoHigher = bucketIndex+(i+1) < 160
-            i += 1
-        return closestNodes
-
-    def addContact(self, contact):
-        """ Add/update the given contact
-
-        @param contact: kademlia.contact.Contact 
-        @note: It is assumed that the bucket is -
-            1) the contact is alive - timeout stuff sorted before method called!
-            2) not full
-            3) contact is in list
-
-            If the exception is raised then a new contact has arrived
-            and then the bucket should be resorted i.e. closest contacts are in bucket
-        """
-        if contact.id == self.id:
-            return
-        
-        #print 'ADDING CONTACT:', contact
-        bucketIndex = self._kbucketIndex(contact.id)
-        try:
-            self._buckets[bucketIndex].addContact(contact)
-        except kbucket.BucketFull, e:
-            print 'addContact(): Warning: ', e
-            headContact = self._buckets[bucketIndex]._contacts[0]
-            
-            def replaceContact(self, failure):
-                """ @type failure: twisted.python.failure.Failure """
-                failure.trap(protocol.TimeoutError)
-                contactID = failure.getErrorMessage()
-                # Remove the old contact...
-                bucketIndex = self._kbucketIndex(contactID)
-                self._buckets[bucketIndex].remove(contactID)
-                # ...and add the new one at the tail of the bucket
-                self.addContact(contact)
-            
-            # Ping the least-recently seen contact in this k-bucket
-            headContact = self._buckets[bucketIndex]._contacts[0]
-            df = headContact.ping()
-            #self._pendingContactReplacements[headContact.id] = contact
-            # If there's an error (i.e. timeout), remove the head contact, and append the new one
-            df.addErrback(replaceContact)
-
-    def iterativeStore(self, plaintextKey, value):
-        """ The Kademlia store operation """
-        # Generate the "real" key from the plaintext one
-        h = hashlib.sha1()
-        h.update(plaintextKey)
-        key = h.digest()
-        # Prepare a callback for doing "STORE" RPC calls
-        def executeStoreRPCs(nodes):
-            for contact in nodes:
-                contact.store(key, value)
-        # Find k nodes closest to the key...
-        df = self.iterativeFindNode(key)
-        # ...and send them STORE RPCs as soon as they've been found
-        df.addCallback(executeStoreRPCs)
-    
-    def iterativeFindNode(self, key):
-        """ The basic Kademlia node lookup operation """
-        return self._iterativeFind(key)
-    
-    def iterativeFindValue(self, key):
-        """ The Kademlia search operation """
-        # Prepare a callback for this operation
-        outerDf = defer.Deferred()
-        def checkResult(result):
-            if type(result) == dict:
-                # We have found the value; now see who was the closest contact without it...
-                if 'closestNodeNoValue' in result:
-                    # ...and store the key/value pair 
-                    contact = result['closestNodeNoValue']
-                    contact.store(key, value)
-            else:
-                # The value wasn't found, but a list of contacts was returned
-                #TODO: should we do something with this? -since our own routing table would have been updated automatically...
-                pass
-            outerDf.callback(result)
-        # Execute the search
-        df = self._iterativeFind(key, findValue=True)
-        df.addCallback(checkResult)
-        return outerDf
-        
-    def removeContact(self, contact):
-        """ Remove the specified contact from this node's table of known nodes
-        
-        @param contact: The contact to remove
-        @type contact: kademlia.contact.Contact
-        
-        @raise ValueError: Raised if the contact isn't found
-        """
-        bucketIndex = self._kbucketIndex(contact.id)
-        try:
-            self._buckets[bucketIndex].remove(contact)
-        except ValueError:
-            print 'removeContact(): Warning: ', e
-            raise
-
-    @rpcmethod
-    def store(self, key, value):
-        """ Store the received data in the local hash table
-        
-        @todo: Since the data (value) may be large, passing it around as a buffer
-               (which is the case currently) might not be a good idea... will have
-               to fix this (perhaps use a stream from the Protocol class?)
-               Please comment on the relevant Trac ticket (or open a new one) if you
-               have ideas
-               -Francois
-        """
-        self._dataStore[key] = value
-    
-    @rpcmethod
-    def findValue(self, key, **kwargs):
-        """ Return the value associated with the specified key if present in
-        this node's data, otherwise execute FIND_NODE for the key
-        
-        @param key: The hashtable key of the data to return
-        @type key: str
-        """
-        if key in self._dataStore:
-            return {key: self._dataStore[key]}
-        else:
-            return self.findNode(key, **kwargs)
-
-    @rpcmethod
-    def ping(self):
-        """ Used to verify contact between two Kademlia nodes """
-        return 'pong'
-
-    def _generateID(self):
-        """ Generates a 160-bit pseudo-random identifier
-        
-        @return: A globally unique 160-bit pseudo-random identifier
-        @rtype: str
-        """
-        hash = hashlib.sha1()
-        hash.update(str(random.getrandbits(255)))  
-        return hash.digest()
-
-    def _distance(self, keyOne, keyTwo):
-        """ Calculate the XOR result between two string variables
-        
-        @return: XOR result of two long variables
-        @rtype: long
-        """
-        valKeyOne = long(keyOne.encode('hex'), 16)
-        valKeyTwo = long(keyTwo.encode('hex'), 16)
-        return valKeyOne ^ valKeyTwo
     
     def _kbucketIndex(self, key):
         """ Calculate the index of the k-bucket which is responsible for the
@@ -564,11 +519,51 @@ class Node(object):
         distanceStr = makeIDString(distance)
         randomID = makeIDString(self._distance(distanceStr, self.id))
         return randomID
-    
-    def _getContact(self, contactID):
-        """ Returns the (known) contact with the specified node ID """
-        bucketIndex = self._kbucketIndex(contactID)
-        return self._buckets[bucketIndex].getContact(contactID)
+
+    def _refreshKBuckets(self, startIndex=0, force=False, scheduleNextCall=False):
+        """ Refreshes all k-buckets that need refreshing, starting at the
+        k-bucket with the specified index
+
+        @param startIndex: The index of the bucket to start refreshing at;
+                           this bucket and those further away from it will
+                           be refreshed. For example, when joining the
+                           network, this node will set this to the index of
+                           the bucket after the one containing it's closest
+                           neighbour.
+        @type startIndex: index
+        @param force: If this is C{True}, all buckets (in the specified range)
+                      will be refreshed, regardless of the time they were last
+                      accessed.
+        @type force: bool
+        """
+        print '======================= JOIN: refreshing buckets ==================='
+        print '_refreshKbuckets called with index:',startIndex
+        bucketIndex = []
+        bucketIndex.append(startIndex + 1)
+        outerDf = defer.Deferred()
+        def refreshNextKBucket(dfResult=None):
+            print '  refreshNexKbucket called; bucketindex is', bucketIndex[0]
+            bucketIndex[0] += 1
+            while bucketIndex[0] < 160:
+                if force or (time.time() - self._buckets[bucketIndex[0]].lastAccessed >= constants.refreshTimeout):
+                    searchID = self._randomIDInBucketRange(bucketIndex[0])
+                    self._buckets[bucketIndex[0]].lastAccessed = time.time()
+                    print '  refreshing bucket',bucketIndex[0]
+                    df = self.iterativeFindNode(searchID)
+                    df.addCallback(refreshNextKBucket)
+                    return
+                else:
+                    bucketIndex[0] += 1
+            # If this is reached, we have refreshed all the buckets
+            print '  all buckets refreshed; initiating outer deferred callback'
+            outerDf.callback(None)
+        print '_refreshKbuckets starting cycle'
+        refreshNextKBucket()
+        print '_refreshKbuckets returning'
+        if scheduleNextCall:
+            protocol.reactor.callLater(constants.checkRefreshInterval, self._refreshKBuckets, 0, False, True)
+        return outerDf
+
 
 import sys
 if __name__ == '__main__':
