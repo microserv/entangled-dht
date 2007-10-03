@@ -177,7 +177,7 @@ class Node(object):
         bucketIndex = self._kbucketIndex(contactID)
         try:
             self._buckets[bucketIndex].removeContact(contactID)
-        except ValueError:
+        except ValueError, e:
             print 'removeContact(): Warning: ', e
             raise
 
