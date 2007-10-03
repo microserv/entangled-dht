@@ -38,7 +38,7 @@ class Node(object):
             self._protocol = networkProtocol
         # Initialize the data storage mechanism used by this node
         if dataStore == None:
-            self._dataStore = datastore.DataStore()
+            self._dataStore = datastore.DictDataStore()
         else:
             self._dataStore = dataStore
         #self._pendingContactReplacements = {}
@@ -75,7 +75,7 @@ class Node(object):
         df.addCallback(self._refreshKBuckets)
         protocol.reactor.callLater(30, self.printContacts)
         # Start refreshing k-buckets periodically, if necessary
-        protocol.reactor.callLater(constants.checkRefreshInterval, self._refreshKBuckets, 0, False, True)
+        protocol.reactor.callLater(constants.checkRefreshInterval, self._refreshNode)
         protocol.reactor.run()
 
 
@@ -88,16 +88,14 @@ class Node(object):
         protocol.reactor.callLater(30, self.printContacts)
 
 
-    def iterativeStore(self, plaintextKey, value):
+    def iterativeStore(self, key, value, originalPublisherID=None, age=0):
         """ The Kademlia store operation """
-        # Generate the "real" key from the plaintext one
-        h = hashlib.sha1()
-        h.update(plaintextKey)
-        key = h.digest()
+        if originalPublisherID == None:
+            originalPublisherID = self.id
         # Prepare a callback for doing "STORE" RPC calls
         def executeStoreRPCs(nodes):
             for contact in nodes:
-                contact.store(key, value)
+                contact.store(key, value, originalPublisherID, age)
         # Find k nodes closest to the key...
         df = self.iterativeFindNode(key)
         # ...and send them STORE RPCs as soon as they've been found
@@ -189,17 +187,41 @@ class Node(object):
         return 'pong'
 
     @rpcmethod
-    def store(self, key, value):
+    def store(self, key, value, originalPublisherID=None, age=0, **kwargs):
         """ Store the received data in the local hash table
+        
+        @param key: The hashtable key of the data
+        @type key: str
+        @param value: The actual data (the value associated with C{key})
+        @type value: str
+        @param originalPublisherID: The node ID of the node that is the
+                                    B{original} publisher of the data
+        @type originalPublisherID: str
+        @param age: The relative age of the data (time in seconds since it was
+                    originally published). Note that the original publish time
+                    isn't actually given, to compensate for clock skew between
+                    different nodes.
+        @type age: int
         
         @todo: Since the data (value) may be large, passing it around as a buffer
                (which is the case currently) might not be a good idea... will have
                to fix this (perhaps use a stream from the Protocol class?)
-               Please comment on the relevant Trac ticket (or open a new one) if you
-               have ideas
-               -Francois
         """
-        self._dataStore[key] = value
+        # Get the sender's ID (if any)
+        if '_rpcNodeID' in kwargs:
+            rpcSenderID = kwargs['_rpcNodeID']
+        else:
+            rpcSenderID = None
+            
+        if originalPublisherID == None:
+            if rpcSenderID != None:
+                originalPublisherID = rpcSenderID
+            else:
+                raise TypeError, 'No publisher specifed, and RPC caller ID not available. Data requires an original publisher.'
+
+        now = time.time()
+        originallyPublished = now - age
+        self._dataStore.setItem(key, value, now, originallyPublished, originalPublisherID)
 
     @rpcmethod
     def findNode(self, key, **kwargs):
@@ -520,7 +542,7 @@ class Node(object):
         randomID = makeIDString(self._distance(distanceStr, self.id))
         return randomID
 
-    def _refreshKBuckets(self, startIndex=0, force=False, scheduleNextCall=False):
+    def _refreshKBuckets(self, startIndex=0, force=False):
         """ Refreshes all k-buckets that need refreshing, starting at the
         k-bucket with the specified index
 
@@ -560,10 +582,31 @@ class Node(object):
         print '_refreshKbuckets starting cycle'
         refreshNextKBucket()
         print '_refreshKbuckets returning'
-        if scheduleNextCall:
-            protocol.reactor.callLater(constants.checkRefreshInterval, self._refreshKBuckets, 0, False, True)
         return outerDf
+    
+    def _refreshNode(self):
+        """ Periodically called to perform k-bucket refreshes and data
+        replication/republishing as necessary """
+        df = self._refreshKBuckets(0, False)
+        df.addCallback(self._republishData)
 
+    def _republishData(self, *args):
+        """ Republishes and expires any stored data (i.e. stored
+        C{(key, value pairs)} that need to be republished/expired """
+        for key in self._dataStore:
+            now = time.time()
+            originalPublisherID = self._dataStore.originalPublisherID(key)
+            age = now - self._dataStore.originallyPublished(key)
+            if originalPublisherID == self.id:
+                # This node is the original publisher; it has to republish
+                # the data before it expires (24 hours in basic Kademlia)
+                if age >= constants.dataExpireTimeout:
+                    self.iterativeStore(key, self._dataStore[key])
+            else:
+                # This node needs to replicate the data at set intervals,
+                # until it expires, without changing the metadata associated with it
+                if now - self._dataStore.lastPublished(key) >= constants.replicateInterval:
+                    self.iterativeStore(key, self._dataStore[key], originalPublisherID, age)
 
 import sys
 if __name__ == '__main__':

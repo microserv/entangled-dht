@@ -10,30 +10,150 @@
 import UserDict
 import sqlite3
 import cPickle as pickle
+import time
+
 
 class DataStore(UserDict.DictMixin):
-    """ Future interface for classes implementing physical storage for the Kademlia DHT;
-    currently this is an *example* of a in-memory SQL database-based datastore
+    """ Interface for classes implementing physical storage (for data
+    published via the "STORE" RPC) for the Kademlia DHT
     
     @note: This provides an interface for a dict-like object
-    
-    @todo: discuss whether or not it's necessary to define DataStore as an interface; it may
-           be sufficient to require a dict-like object as the data storage object
     """
+    def keys(self):
+        """ Return a list of the keys in this data store """
+
+    def lastPublished(self, key):
+        """ Get the time the C{(key, value)} pair identified by C{key}
+        was last published """
+    
+    def originalPublisherID(self, key):
+        """ Get the original publisher of the data's node ID
+        
+        @param key: The key that identifies the stored data
+        @type key: str
+        
+        @return: Return the node ID of the original publisher of the
+        C{(key, value)} pair identified by C{key}.
+        """
+    
+    def originalPublishTime(self, key):
+        """ Get the time the C{(key, value)} pair identified by C{key}
+        was originally published """
+
+    def setItem(self, key, value, lastPublished, originallyPublished, originalPublisherID):
+        """ Set the value of the (key, value) pair identified by C{key};
+        this should set the "last published" value for the (key, value)
+        pair to the current time
+        """
+        
+    def __getitem__(self, key):
+        """ Get the value identified by C{key} """
+        
+    def __setitem__(self, key, value):
+        """ Convenience wrapper to C{setItem}; this accepts a tuple in the
+        format: (value, lastPublished, originallyPublished, originalPublisherID) """
+        self.setItem(key, *value)
+
+class DictDataStore(DataStore):
+    """ A datastore using an in-memory Python dictionary """
     def __init__(self):
-        self._db = sqlite3.connect(':memory:')
-        self._db.execute('create table data(key, value)')
+        # Dictionary format:
+        # { <key>: (<value>, <lastPublished>, <originallyPublished> <originalPublisherID>) }
+        self._dict = {}
+    
+    def keys(self):
+        """ Return a list of the keys in this data store """
+        return self._dict.keys()
+    
+    def lastPublished(self, key):
+        """ Get the time the C{(key, value)} pair identified by C{key}
+        was last published """
+        return self._dict[key][1]
+    
+    def originalPublisherID(self, key):
+        """ Get the original publisher of the data's node ID
+        
+        @param key: The key that identifies the stored data
+        @type key: str
+        
+        @return: Return the node ID of the original publisher of the
+        C{(key, value)} pair identified by C{key}.
+        """
+        return self._dict[key][3]
+    
+    def originalPublishTime(self, key):
+        """ Get the time the C{(key, value)} pair identified by C{key}
+        was originally published """
+        return self._dict[key][2]
+        
+    def setItem(self, key, value, lastPublished, originallyPublished, originalPublisherID):
+        """ Set the value of the (key, value) pair identified by C{key};
+        this should set the "last published" value for the (key, value)
+        pair to the current time
+        """
+        self._dict[key] = (value, lastPublished, originallyPublished, originalPublisherID)
+        
+    def __getitem__(self, key):
+        """ Get the value identified by C{key} """
+        return self._dict[key][0]
+
+
+class SQLiteDataStore(DataStore):
+    """ Example of a SQLite database-based datastore
+    """
+    def __init__(self, dbFile=':memory:'):
+        """
+        @param dbFile: The name of the file containing the SQLite database; if
+                       unspecified, an in-memory database is used.
+        @type dbFile: str
+        """
+        self._db = sqlite3.connect(dbFile)
+        self._db.execute('create table data(key, value, lastPublished, originallyPublished, originalPublisherID)')
         self._cursor = self._db.cursor()
     
-    def __getitem__(self, key):
+    def keys(self):
+        """ Return a list of the keys in this data store """
+        keys = []
         try:
-            self._cursor.execute("select value from data where key=:reqKey", {'reqKey': key})
+            self._cursor.execute("select key from data")
+            for row in self._cursor:
+                keys.append(row[0])
+        finally:
+            return keys
+    
+    def lastPublished(self, key):
+        """ Get the time the C{(key, value)} pair identified by C{key}
+        was last published """
+        return self._dbQuery(key, 'lastPublished')
+    
+    def originalPublisherID(self, key):
+        """ Get the original publisher of the data's node ID
+        
+        @param key: The key that identifies the stored data
+        @type key: str
+        
+        @return: Return the node ID of the original publisher of the
+        C{(key, value)} pair identified by C{key}.
+        """
+        return self._dbQuery(key, 'originalPublisherID')
+        
+    def originalPublishTime(self, key):
+        """ Get the time the C{(key, value)} pair identified by C{key}
+        was originally published """
+        return self._dbQuery(key, 'originallyPublished')
+
+    def setItem(self, key, value, lastPublished, originallyPublished, originalPublisherID):
+        self._cursor.execute('insert into data(key, value, originalPublisherID, originallyPublished, lastPublished) values (?, ?, ?, ?, ?)', (key, buffer(pickle.dumps(value, pickle.HIGHEST_PROTOCOL)), lastPublished, originallyPublished, originalPublisherID))
+    
+    def _dbQuery(self, key, columnName):
+        try:
+            self._cursor.execute("select %s from data where key=:reqKey" % columnName, {'reqKey': key})
             row = self._cursor.fetchone()
             value = str(row[0])
         except TypeError:
             raise KeyError, key
         else:
             return pickle.loads(value)
-        
-    def __setitem__(self, key, value):
-        self._cursor.execute('insert into data(key, value) values (?, ?)', (key, buffer(pickle.dumps(value, pickle.HIGHEST_PROTOCOL))))
+    
+    def __getitem__(self, key):
+        return self._dbQuery(key, 'value')

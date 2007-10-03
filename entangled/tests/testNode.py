@@ -68,7 +68,7 @@ class NodeDataTest(unittest.TestCase):
     def testStore(self):
         """ Tests if the node can store (and privately retrieve) some data """
         for key, value in self.cases:
-            self.node.store(key, value)
+            self.node.store(key, value, self.node.id)
         for key, value in self.cases:
             self.failUnless(key in self.node._dataStore, 'Stored key not found in node\'s DataStore: "%s"' % key)
 

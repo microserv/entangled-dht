@@ -5,6 +5,7 @@
 # See the COPYING file included in this archive
 
 import unittest
+import time
 
 import kademlia.datastore
 
@@ -13,7 +14,7 @@ import hashlib
 class DataStoreTest(unittest.TestCase):
     """ Basic tests case for the reference DataStore API and implementation """
     def setUp(self):
-        self.ds = kademlia.datastore.DataStore()
+        self.ds = kademlia.datastore.DictDataStore()
         h = hashlib.sha1()
         h.update('g')
         hashKey = h.digest()
@@ -28,7 +29,8 @@ class DataStoreTest(unittest.TestCase):
         # Test write ability
         for key, value in self.cases:
             try:
-                self.ds[key] = value
+                now = time.time()
+                self.ds.setItem(key, value, now, 'node1', now)
             except Exception:
                 import traceback
                 self.fail('Failed writing the following data: key: "%s", data: "%s"\n  The error was: %s:' % (key, value, traceback.format_exc(5)))
@@ -47,7 +49,7 @@ class DataStoreTest(unittest.TestCase):
     
     def testNonExistentKeys(self):
         for key, value in self.cases:
-            self.failIf(key in self.ds, 'DataStore reports it has non-existent key: "%s"') 
+            self.failIf(key in self.ds, 'DataStore reports it has non-existent key: "%s"' % key) 
 
 def suite():
     suite = unittest.TestSuite()
