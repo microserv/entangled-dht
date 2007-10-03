@@ -39,6 +39,7 @@ class KademliaProtocol(protocol.DatagramProtocol):
         df = defer.Deferred()
         if rawResponse:
             df._rpcRawResponse = True
+
         # Set the RPC timeout timer
         timeoutCall = reactor.callLater(constants.rpcTimeout, self._msgTimeout, msg.id)
         # Transmit the data
@@ -147,10 +148,11 @@ class KademliaProtocol(protocol.DatagramProtocol):
         """ Called when an RPC request message times out """
         # Find the message that timed out
         if self._sentMessages.has_key(messageID):
-            remoteContactID, df = self._sentMessages[messageID][0:2]
+            remoteContactID, df = self._sentMessages[messageID][0:2]    
             del self._sentMessages[messageID]
             # The message's destination node is now considered to be dead;
-            # raise an (asynchronous) TimeoutError exception to update the host node
+            # raise an (asynchronous) TimeoutError exception and update the host node
+            self._node.removeContact(remoteContactID)
             df.errback(failure.Failure(TimeoutError(remoteContactID)))
         else:
             # This should never be reached

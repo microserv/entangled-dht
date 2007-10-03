@@ -40,6 +40,10 @@ class KBucket(object):
         else:
             raise BucketFull("No space in bucket to insert contact")
 
+    def getContact(self, contactID):
+        """ Get the contact specified node ID"""
+        index = self._contacts.index(contactID)
+        return self._contacts[index]
 
     def getContacts(self, count=-1, excludeContact=None):
         """ Returns a list containing up to the first count number of contacts
@@ -94,17 +98,13 @@ class KBucket(object):
     def removeContact(self, contact):
         """ Remove given contact from list
         
-        @param contact: The contact to remove
-        @type contact: kademlia.contact.Contact
+        @param contact: The contact to remove, or a string containing the
+                        contact's node ID
+        @type contact: kademlia.contact.Contact or str
         
         @raise ValueError: The specified contact is not in this bucket
         """
         self._contacts.remove(contact)
-
-    def getContact(self, contactID):
-        """ Get the contact specified node ID"""
-        index = self._contacts.index(contactID)
-        return self._contacts[index]
     
     def __len__(self):
         return len(self._contacts)

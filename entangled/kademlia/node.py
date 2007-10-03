@@ -141,7 +141,6 @@ class Node(object):
         if contact.id == self.id:
             return
         
-        #print 'ADDING CONTACT:', contact
         bucketIndex = self._kbucketIndex(contact.id)
         try:
             self._buckets[bucketIndex].addContact(contact)
@@ -166,17 +165,18 @@ class Node(object):
             # If there's an error (i.e. timeout), remove the head contact, and append the new one
             df.addErrback(replaceContact)
     
-    def removeContact(self, contact):
-        """ Remove the specified contact from this node's table of known nodes
+    def removeContact(self, contactID):
+        """ Remove the contact with the specified node ID from this node's
+        table of known nodes
         
-        @param contact: The contact to remove
-        @type contact: kademlia.contact.Contact
+        @param contactID: The node ID of the contact to remove
+        @type contactID: str
         
         @raise ValueError: Raised if the contact isn't found
         """
-        bucketIndex = self._kbucketIndex(contact.id)
+        bucketIndex = self._kbucketIndex(contactID)
         try:
-            self._buckets[bucketIndex].remove(contact)
+            self._buckets[bucketIndex].removeContact(contactID)
         except ValueError:
             print 'removeContact(): Warning: ', e
             raise
@@ -423,7 +423,6 @@ class Node(object):
                                 closestNode[0] = testContact
                         else:
                             closestNode[0] = testContact
-            #print 'extendShortlist callback returning'
             return responseMsg.nodeID
         
         def removeFromShortlist(failure):
@@ -444,10 +443,6 @@ class Node(object):
                 pendingIterationCalls[0].cancel()
                 del pendingIterationCalls[0]
                 searchIteration()
-            else:
-                #print 'NOT CANCELLING CALL'
-                print len(activeProbes)
-                print len(pendingIterationCalls)
             #print 'probe inactive. count is:', len(activeProbes)
 
         # Send parallel, asynchronous FIND_NODE RPCs to the shortlist of contacts
@@ -558,7 +553,6 @@ class Node(object):
                       accessed.
         @type force: bool
         """
-        print '======================= JOIN: refreshing buckets ==================='
         print '_refreshKbuckets called with index:',startIndex
         bucketIndex = []
         bucketIndex.append(startIndex + 1)
@@ -587,12 +581,15 @@ class Node(object):
     def _refreshNode(self):
         """ Periodically called to perform k-bucket refreshes and data
         replication/republishing as necessary """
+        print 'refreshNode called'
         df = self._refreshKBuckets(0, False)
         df.addCallback(self._republishData)
+        protocol.reactor.callLater(constants.checkRefreshInterval, self._refreshNode)
 
     def _republishData(self, *args):
         """ Republishes and expires any stored data (i.e. stored
         C{(key, value pairs)} that need to be republished/expired """
+        print 'republishData called'
         for key in self._dataStore:
             now = time.time()
             originalPublisherID = self._dataStore.originalPublisherID(key)
