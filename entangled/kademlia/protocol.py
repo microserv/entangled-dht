@@ -31,7 +31,31 @@ class KademliaProtocol(protocol.DatagramProtocol):
         self._sentMessages = {}
         
     def sendRPC(self, contact, method, args, rawResponse=False):
-        """ Sends an RPC to the specified contact """
+        """ Sends an RPC to the specified contact
+        
+        @param contact: The contact (remote node) to send the RPC to
+        @type contact: kademlia.contacts.Contact
+        @param method: The name of remote method to invoke
+        @type method: str
+        @param args: A list of (non-keyword) arguments to pass to the remote
+                    method, in the correct order
+        @type args: tuple
+        @param rawResponse: If this is set to C{True}, the caller of this RPC
+                            will receive the actual response message object as
+                            a result; in other words, it will not be
+                            interpreted by this class. Unless something special
+                            needs to be done with the metadata associated with
+                            the message, this should remain C{False}.
+        @type rawResponse: bool
+
+        @return: This immediately returns a deferred object, which will return
+                 the result of the RPC call, or raise the relevant exception
+                 if the remote node raised one. If C{rawResponse} is set to
+                 C{True}, however, it will always return the actual response
+                 message (which may be a C{ResponseMessage} or an
+                 C{ErrorMessage}).
+        @rtype: twisted.internet.defer.Deferred
+        """
         msg = msgtypes.RequestMessage(self._node.id, method, args)
         msgPrimitive = self._translator.toPrimitive(msg)
         encodedMsg = self._encoder.encode(msgPrimitive)
@@ -48,6 +72,11 @@ class KademliaProtocol(protocol.DatagramProtocol):
         return df
     
     def datagramReceived(self, datagram, address):
+        """ Handles and parses incoming RPC messages (and responses 
+        
+        @note: This is automatically called by Twisted when the protocol
+               receives a UDP datagram
+        """
         msgPrimitive = self._encoder.decode(datagram)
         message = self._translator.fromPrimitive(msgPrimitive)
         
