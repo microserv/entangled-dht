@@ -89,7 +89,23 @@ class Node(object):
 
 
     def iterativeStore(self, key, value, originalPublisherID=None, age=0):
-        """ The Kademlia store operation """
+        """ The Kademlia store operation
+        
+        Call this to store/republish data in the DHT.
+        
+        @param key: The hashtable key of the data
+        @type key: str
+        @param value: The actual data (the value associated with C{key})
+        @type value: str
+        @param originalPublisherID: The node ID of the node that is the
+                                    B{original} publisher of the data
+        @type originalPublisherID: str
+        @param age: The relative age of the data (time in seconds since it was
+                    originally published). Note that the original publish time
+                    isn't actually given, to compensate for clock skew between
+                    different nodes.
+        @type age: int
+        """
         if originalPublisherID == None:
             originalPublisherID = self.id
         # Prepare a callback for doing "STORE" RPC calls
@@ -102,11 +118,39 @@ class Node(object):
         df.addCallback(executeStoreRPCs)
     
     def iterativeFindNode(self, key):
-        """ The basic Kademlia node lookup operation """
+        """ The basic Kademlia node lookup operation
+        
+        @param key: the 160-bit key (i.e. the node or value ID) to search for
+        @type key: str
+        
+        @return: This immediately returns a deferred object, which will return
+                 a list of k "closest" contacts (C{kademlia.contact.Contact}
+                 objects) to the specified key as soon as the operation is
+                 finished.
+        @rtype: twisted.internet.defer.Deferred
+        """
         return self._iterativeFind(key)
     
     def iterativeFindValue(self, key):
-        """ The Kademlia search operation """
+        """ The Kademlia search operation
+        
+        Call this to retrieve data from the DHT.
+        
+        @param key: the 160-bit key (i.e. the value ID) to search for
+        @type key: str
+        
+        @return: This immediately returns a deferred object, which will return
+                 either one of two things:
+                     - If the value was found, it will return a Python
+                     dictionary containing the searched-for key (the C{key}
+                     parameter passed to this method), and its associated
+                     value, in the format:
+                     C{<str>key: <str>data_value}
+                     - If the value was not found, it will return a list of k
+                     "closest" contacts (C{kademlia.contact.Contact} objects)
+                     to the specified key
+        @rtype: twisted.internet.defer.Deferred
+        """
         # Prepare a callback for this operation
         outerDf = defer.Deferred()
         def checkResult(result):
@@ -129,14 +173,8 @@ class Node(object):
     def addContact(self, contact):
         """ Add/update the given contact
 
-        @param contact: kademlia.contact.Contact 
-        @note: It is assumed that the bucket is -
-            1) the contact is alive - timeout stuff sorted before method called!
-            2) not full
-            3) contact is in list
-
-            If the exception is raised then a new contact has arrived
-            and then the bucket should be resorted i.e. closest contacts are in bucket
+        @param contact: The contact to add to this node's k-buckets
+        @type contact: kademlia.contact.Contact
         """
         if contact.id == self.id:
             return
@@ -171,8 +209,6 @@ class Node(object):
         
         @param contactID: The node ID of the contact to remove
         @type contactID: str
-        
-        @raise ValueError: Raised if the contact isn't found
         """
         bucketIndex = self._kbucketIndex(contactID)
         try:
@@ -187,7 +223,7 @@ class Node(object):
 
     @rpcmethod
     def store(self, key, value, originalPublisherID=None, age=0, **kwargs):
-        """ Store the received data in the local hash table
+        """ Store the received data in this node's local hash table
         
         @param key: The hashtable key of the data
         @type key: str
@@ -333,6 +369,21 @@ class Node(object):
         the "FIND_NODE" RPC, or if C{findValue} is set to C{True}, using the
         "FIND_VALUE" RPC, in which case the value (if found) may be returned
         instead of a list of contacts
+        
+        @param key: the 160-bit key (i.e. the node or value ID) to search for
+        @type key: str
+        @param shortlist: A list of contacts to use as the starting shortlist
+                          for this search; this is normally only used when 
+                          the node joins the network
+        @type shortlist: list
+        @param findValue: Sets whether this algorithm should search for a data
+                          value (if set to C{True}), or not.
+        @type findValue: bool
+        
+        @return: If C{findValue} is C{True}, the algorithm will stop as soon
+                 as a data value for C{key} is found, and return a dictionary
+                 containing the key and the found value. Otherwise, it will
+                 return a list of the k closest nodes to the specified key
         """
         print '\n_iterativeFind() called'
         if shortlist == None:
