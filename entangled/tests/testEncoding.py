@@ -13,7 +13,9 @@ class BencodeTest(unittest.TestCase):
     def setUp(self):
         self.encoding = kademlia.encoding.Bencode()
         # Thanks goes to wikipedia for the initial test cases ;-)
-        self.cases = ((42, 'i42e'),
+        self.cases = ((True, 'i1e'),
+                      (False, 'i0e'),
+                      (42, 'i42e'),
                       ('spam', '4:spam'),
                       (['spam',42], 'l4:spami42ee'),
                       ({'foo':42, 'bar':'spam'}, 'd3:bar4:spam3:fooi42ee'),
