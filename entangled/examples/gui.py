@@ -17,14 +17,18 @@ class EntangledViewer(gtk.DrawingArea):
         self.node = node
         self.timeoutID = gobject.timeout_add(5000, self.timeout)
         self.comms = []
+        self.drawnComms = []
         self.incomingComms = []
+        self.drawnIncomingComms = []
         # poison the contact with our GUI hooks
-        kademlia.contact.Contact.__getattr__ = EntangledViewer.__guiContactGetAtrr
-        kademlia.contact.Contact.__gui = self
+        #kademlia.contact.Contact.__getattr__ = EntangledViewer.__guiContactGetAtrr
+        #kademlia.contact.Contact.__gui = self
         self.node.__gui = self
         self.node.__realAddContact = self.node.addContact
         self.node.addContact = self.__guiNodeAddContact
-    
+        self.node._protocol.__gui = self
+        self.node._protocol.__realSendRPC = self.node._protocol.sendRPC
+        self.node._protocol.sendRPC = self.__guiSendRPC
     
     @staticmethod
     def __guiContactGetAtrr(self, name):
@@ -40,6 +44,11 @@ class EntangledViewer(gtk.DrawingArea):
         """
         self.drawIncomingComms(contact.id)
         return self.node.__realAddContact(contact)
+    
+    def __guiSendRPC(self, contact, method, args, rawResponse=False):
+        print 'sending'
+        self.drawComms(contact.id)
+        return self.node._protocol.__realSendRPC(contact, method, args, rawResponse)
     
     # Draw in response to an expose-event
     __gsignals__ = { "expose-event": "override" }
@@ -62,6 +71,8 @@ class EntangledViewer(gtk.DrawingArea):
         #cr.fill()
 
         # draw a rectangle
+        
+            
         cr.set_source_rgb(1.0, 1.0, 1.0)
         cr.rectangle(0, 0, width, height)
         cr.fill()
@@ -101,9 +112,16 @@ class EntangledViewer(gtk.DrawingArea):
         cr.arc(w, h, s, 0, 2 * math.pi)
         cr.set_source(radial)
         cr.fill()
+        
+        if len(self.comms):
+            cr.set_line_width(5)
+            cr.set_source_rgba(0, 0.7, 0.8, 0.5)
+        else:
+            cr.set_source_rgba(0.0, 0.0, 0.4, 0.7)
         cr.arc(w, h, s+1, 0, 2 * math.pi)
-        cr.set_source_rgba(0.0, 0.0, 0.4, 0.7)
+        
         cr.stroke()
+        cr.set_line_width(2)
         #cr.stroke()
         #cr.arc(width / 2.0, height / 2.0, radius / 3.0 - 10, math.pi / 3, 2 * math.pi / 3)
         #cr.stroke()
@@ -114,13 +132,13 @@ class EntangledViewer(gtk.DrawingArea):
         
         blips = []
         for i in range(160):
-            for contact in self.node._buckets[i]._contacts:
-                
-                blips.append((i, contact))
-        if len(blips) == 0:
-            return
+            for contact in self.node._buckets[i]._contacts:    
+                blips.append(contact.id)
         # ...and now circles for all the other nodes
-        spacing = 360/(len(blips))
+        if len(blips) == 0:
+            spacing = 180
+        else:
+            spacing = 360/(len(blips))
         degrees = 0
         radius = min(width/6, height/6) / 3 - 20
         if radius < 5:
@@ -154,55 +172,82 @@ class EntangledViewer(gtk.DrawingArea):
             cr.set_source(radial)
             cr.fill()
             
+            
+            
+            if blip in self.incomingComms:
+                cr.set_source_rgba(0.8, 0.0, 0.0, 0.6) 
+                cr.move_to(width/2, height/2)
+                cr.line_to(w, h)
+                cr.stroke()
+                cr.set_line_width(5)
+            else:
+                cr.set_source_rgba(0.4, 0.0, 0.0, 0.7)
+                
             cr.arc(w, h, radius+1, 0, 2 * math.pi)
-            cr.set_source_rgba(0.4, 0.0, 0.0, 0.7)
+            
             cr.stroke()
-            
-            if blip[1] in self.comms:
-                cr.set_source_rgba(0.0, 0.0, 0.8, 0.8)
+             
+            if blip in self.comms:
+                cr.set_line_width(5)
+                cr.set_source_rgba(0.0, 0.7, 0.8, 0.4)
                 cr.move_to(width/2, height/2)
                 cr.line_to(w, h)
                 cr.stroke()
-                gobject.timeout_add(500, self.removeComm, blip[1])
             
-            if blip[1] in self.incomingComms:
-                cr.set_source_rgba(0.8, 0.0, 0.0, 0.8)
-                cr.move_to(width/2, height/2)
-                cr.line_to(w, h)
-                cr.stroke()
-                gobject.timeout_add(500, self.removeIncomingComm, blip[1])
+        
+            cr.set_line_width(2)
             
             degrees += spacing
+        
+        print 'at end'
+        cr.set_line_width(5)
+        cr.set_source_rgba(0.6, 0.6, 0.6, 0.4)
+        i = 0
+        print len(self.comms)
+        for lostComm in self.comms:
+            if lostComm not in blips:
+                print 'should be drawing...'
+                cr.move_to(width/2, height/2)
+                cr.line_to(100*i, 0)
+                cr.stroke()
+                if lostComm not in self.drawnComms:
+                    gobject.timeout_add(500, self.removeComm, lostComm)
+                    self.drawnComms.append(lostComm)
+            i += 1
+        
+        
 
     def timeout(self):
         """ Timeout handler to update the GUI """
-        print 'timeout'
+        #print 'timeout'
         self.window.invalidate_rect(self.allocation, False)
         return True
     
     def drawComms(self, contactID):
-        self.comms.append(contactID)
-        self.window.invalidate_rect(self.allocation, False)
+        if contactID not in self.comms:
+            self.comms.append(contactID)
+            gobject.timeout_add(500, self.removeComm, contactID)
+            self.window.invalidate_rect(self.allocation, False)
     
     def drawIncomingComms(self, contactID):
-        self.incomingComms.append(contactID)
-        self.window.invalidate_rect(self.allocation, False)
+        if contactID not in self.incomingComms:
+            self.incomingComms.append(contactID)
+            gobject.timeout_add(500, self.removeIncomingComm, contactID)
+            self.window.invalidate_rect(self.allocation, False)
     
     def removeIncomingComm(self, contactID):
         try:
             self.incomingComms.remove(contactID)
+        finally:
             self.window.invalidate_rect(self.allocation, False)
-        except ValueError:
-            pass
-        return False
+            return False
     
     def removeComm(self, contactID):
         try:
             self.comms.remove(contactID)
+        finally:
             self.window.invalidate_rect(self.allocation, False)
-        except ValueError:
-            pass
-        return False
+            return False
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
