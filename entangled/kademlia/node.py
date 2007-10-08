@@ -80,10 +80,11 @@ class Node(object):
 
 
     def printContacts(self):
-        contacts = self._findCloseNodes(self.id, 100)
+        #contacts = self._findCloseNodes(self.id, 100)
         print '\n\nNODE CONTACTS\n==============='
-        for item in contacts:
-            print item
+        for i in range(160):
+            for contact in self._buckets[i]._contacts:
+                print contact
         print '=================================='
         protocol.reactor.callLater(10, self.printContacts)
 
@@ -183,16 +184,20 @@ class Node(object):
         try:
             self._buckets[bucketIndex].addContact(contact)
         except kbucket.BucketFull, e:
-            print 'addContact(): Warning: ', e
+            #print 'addContact(): Warning: ', e
+            #print 'contact is:', contact
             headContact = self._buckets[bucketIndex]._contacts[0]
-            
-            def replaceContact(self, failure):
+            #print 'bucket head contact is:', headContact
+
+            def replaceContact(failure):
                 """ @type failure: twisted.python.failure.Failure """
+                #print 'replaceContact called, failure:', failure.getErrorMessage()
                 failure.trap(protocol.TimeoutError)
-                contactID = failure.getErrorMessage()
+                #print 'replacing contact %s with %s' % (headContact, contact)
+                #contactID = failure.getErrorMessage()
                 # Remove the old contact...
-                bucketIndex = self._kbucketIndex(contactID)
-                self._buckets[bucketIndex].remove(contactID)
+                #bucketIndex = self._kbucketIndex(contactID)
+                #self._buckets[bucketIndex].removeContact(contactID)
                 # ...and add the new one at the tail of the bucket
                 self.addContact(contact)
             
@@ -358,9 +363,18 @@ class Node(object):
         return hash.digest()
     
     def _getContact(self, contactID):
-        """ Returns the (known) contact with the specified node ID """
+        """ Returns the (known) contact with the specified node ID
+        
+        @raise ValueError: No contact with the specified contact ID is known
+                           by this node
+        """
         bucketIndex = self._kbucketIndex(contactID)
-        return self._buckets[bucketIndex].getContact(contactID)
+        try:
+            contact = self._buckets[bucketIndex].getContact(contactID)
+        except ValueError:
+            raise
+        else:
+            return contact
     
     def _iterativeFind(self, key, shortlist=None, findValue=False):
         """ The basic Kademlia iterative lookup operation (for nodes/values)
@@ -385,7 +399,7 @@ class Node(object):
                  containing the key and the found value. Otherwise, it will
                  return a list of the k closest nodes to the specified key
         """
-        print '\n_iterativeFind() called'
+        #print '\n_iterativeFind() called'
         if shortlist == None:
             shortlist = self._findCloseNodes(key, constants.alpha)
             if key != self.id:
@@ -396,7 +410,7 @@ class Node(object):
                 # This node doesn't know of any other nodes
                 fakeDf = defer.Deferred()
                 fakeDf.callback(None)
-                print '...exiting due to no known nodes'
+                #print '...exiting due to no known nodes'
                 return fakeDf
             # Note the closest known node
             #TODO: possible IndexError exception here:
@@ -408,9 +422,9 @@ class Node(object):
             # This is used during the bootstrap process; node ID's are most probably fake
             shortlist = shortlist
             closestNode = [None, None]
-            print 'using a bootstrap shortlist:', shortlist
+            #print 'using a bootstrap shortlist:', shortlist
         
-        print '\n++++++++ START OF ITERATIVE SEARCH +++++++++'
+        #print '\n++++++++ START OF ITERATIVE SEARCH +++++++++'
         # List of contact IDs that have already been queried
         alreadyContacted = []
         # List of active queries; len() indicates number of active probes
@@ -429,8 +443,13 @@ class Node(object):
             #print '==========='
             # Mark this node as active
             if responseMsg.nodeID not in activeContacts:
-                aContact = self._getContact(responseMsg.nodeID)
-                activeContacts.append(aContact)
+                try:
+                    aContact = self._getContact(responseMsg.nodeID)
+                except ValueError:
+                    # The contact wasn't stored in our k-buckets; k was probably reached
+                    pass #TODO: we might need to reconstruct the contact and add it to our active contacts list...
+                else:
+                    activeContacts.append(aContact)
                 if responseMsg.nodeID not in alreadyContacted:
                     # This makes sure "bootstrap"-nodes with "fake" IDs don't get queried twice
                     alreadyContacted.append(responseMsg.nodeID)
@@ -438,13 +457,13 @@ class Node(object):
                         if self._distance(key, responseMsg.nodeID) < self._distance(key, closestNode[0].id):
                             closestNode[0] = self._getContact(responseMsg.nodeID)
                     else:
-                        print 'setting closest node to a bootstrap node...'
+                        #print 'setting closest node to a bootstrap node...'
                         closestNode[0] = self._getContact(responseMsg.nodeID)
-                        print '====>closestNode is:', closestNode[0]      
+                        #print '====>closestNode is:', closestNode[0]      
             # Now grow extend the shortlist with the returned contacts
             result = responseMsg.response
             #TODO: some validation on the result (for guarding against attacks)
-            print '==> node returned result:',result
+            #print '==> node returned result:',result
             
             # If we are looking for a value, first see if this result is the value
             # we are looking for before treating it as a list of contact triples
@@ -466,7 +485,7 @@ class Node(object):
                     #print 'testing for shortlist'
                     if testContact not in shortlist:
                         #TODO: currently, the shortlist can grow to more than k entries... should probably fix this, but it isn't fatal
-                        print '....................adding new contact to shortlist:', testContact
+                        #print '....................adding new contact to shortlist:', testContact
                         shortlist.append(testContact)
                         if closestNode[0] != None:
                             if self._distance(key, testContact.id) < self._distance(key, closestNode[0].id):
@@ -477,7 +496,7 @@ class Node(object):
         
         def removeFromShortlist(failure):
             """ @type failure: twisted.python.failure.Failure """
-            print '=== timeout ==='
+            #print '=== timeout ==='
             failure.trap(protocol.TimeoutError)
             deadContactID = failure.getErrorMessage()
             if deadContactID in shortlist:
@@ -501,7 +520,7 @@ class Node(object):
                 del pendingIterationCalls[0]
             # See if should continue the search
             if key in findValueResult:
-                print '++++++++++++++ DONE (findValue found) +++++++++++++++\n\n'
+                #print '++++++++++++++ DONE (findValue found) +++++++++++++++\n\n'
                 outerDf.callback(findValueResult[key])
             elif len(activeContacts) >= constants.k or (closestNode[0] == closestNode[1] and closestNode[0] != None):
                 # Ok, we're done; either we have accumulated k active contacts or
@@ -512,7 +531,7 @@ class Node(object):
                 #print '!!!!!!!ADDING CONTACTS!!!!!!!!!!'
                 #for contact in activeContacts:
                 #    self.addContact(contact)
-                print '++++++++++++++ DONE (test) +++++++++++++++\n\n'
+                #print '++++++++++++++ DONE (test) +++++++++++++++\n\n'
                 outerDf.callback(activeContacts)
             else:
                 #print 'search continues...'
@@ -523,7 +542,7 @@ class Node(object):
                 contactedNow = 0
                 for contact in shortlist:
                     if contact.id not in alreadyContacted:
-                        print '...launching probe to:', contact
+                        #print '...launching probe to:', contact
                         activeProbes.append(contact.id)
                         if findValue == True:
                             df = contact.findValue(key, rawResponse=True)
@@ -542,7 +561,7 @@ class Node(object):
                     call = protocol.reactor.callLater(constants.iterativeLookupDelay, searchIteration)
                     pendingIterationCalls.append(call)
                 else:
-                    print '++++++++++++++ DONE (logically) +++++++++++++\n\n'
+                    #print '++++++++++++++ DONE (logically) +++++++++++++\n\n'
                     # If no probes were sent, there will not be any improvement, so we're done
                     outerDf.callback(closestNode[0])
                 
@@ -603,35 +622,35 @@ class Node(object):
                       accessed.
         @type force: bool
         """
-        print '_refreshKbuckets called with index:',startIndex
+        #print '_refreshKbuckets called with index:',startIndex
         bucketIndex = []
         bucketIndex.append(startIndex + 1)
         outerDf = defer.Deferred()
         def refreshNextKBucket(dfResult=None):
-            print '  refreshNexKbucket called; bucketindex is', bucketIndex[0]
+            #print '  refreshNexKbucket called; bucketindex is', bucketIndex[0]
             bucketIndex[0] += 1
             while bucketIndex[0] < 160:
                 if force or (time.time() - self._buckets[bucketIndex[0]].lastAccessed >= constants.refreshTimeout):
                     searchID = self._randomIDInBucketRange(bucketIndex[0])
                     self._buckets[bucketIndex[0]].lastAccessed = time.time()
-                    print '  refreshing bucket',bucketIndex[0]
+                    #print '  refreshing bucket',bucketIndex[0]
                     df = self.iterativeFindNode(searchID)
                     df.addCallback(refreshNextKBucket)
                     return
                 else:
                     bucketIndex[0] += 1
             # If this is reached, we have refreshed all the buckets
-            print '  all buckets refreshed; initiating outer deferred callback'
+            #print '  all buckets refreshed; initiating outer deferred callback'
             outerDf.callback(None)
-        print '_refreshKbuckets starting cycle'
+        #print '_refreshKbuckets starting cycle'
         refreshNextKBucket()
-        print '_refreshKbuckets returning'
+        #print '_refreshKbuckets returning'
         return outerDf
     
     def _refreshNode(self):
         """ Periodically called to perform k-bucket refreshes and data
         replication/republishing as necessary """
-        print 'refreshNode called'
+        #print 'refreshNode called'
         df = self._refreshKBuckets(0, False)
         df.addCallback(self._republishData)
         protocol.reactor.callLater(constants.checkRefreshInterval, self._refreshNode)
@@ -639,7 +658,7 @@ class Node(object):
     def _republishData(self, *args):
         """ Republishes and expires any stored data (i.e. stored
         C{(key, value pairs)} that need to be republished/expired """
-        print 'republishData called'
+        #print 'republishData called'
         for key in self._dataStore:
             now = time.time()
             originalPublisherID = self._dataStore.originalPublisherID(key)
