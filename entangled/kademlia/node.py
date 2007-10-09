@@ -160,7 +160,7 @@ class Node(object):
                 if 'closestNodeNoValue' in result:
                     # ...and store the key/value pair 
                     contact = result['closestNodeNoValue']
-                    contact.store(key, value)
+                    contact.store(key, result[key])
             else:
                 # The value wasn't found, but a list of contacts was returned
                 #TODO: should we do something with this? -since our own routing table would have been updated automatically...
@@ -259,9 +259,10 @@ class Node(object):
             else:
                 raise TypeError, 'No publisher specifed, and RPC caller ID not available. Data requires an original publisher.'
 
-        now = time.time()
+        now = int(time.time())
         originallyPublished = now - age
         self._dataStore.setItem(key, value, now, originallyPublished, originalPublisherID)
+        return 'OK'
 
     @rpcmethod
     def findNode(self, key, **kwargs):
@@ -405,7 +406,7 @@ class Node(object):
             if key != self.id:
                 # Update the "last accessed" timestamp for the appropriate k-bucket
                 bucketIndex = self._kbucketIndex(key)
-                self._buckets[bucketIndex].lastAccessed = time.time()
+                self._buckets[bucketIndex].lastAccessed = int(time.time())
             if len(shortlist) == 0:
                 # This node doesn't know of any other nodes
                 fakeDf = defer.Deferred()
@@ -521,7 +522,7 @@ class Node(object):
             # See if should continue the search
             if key in findValueResult:
                 #print '++++++++++++++ DONE (findValue found) +++++++++++++++\n\n'
-                outerDf.callback(findValueResult[key])
+                outerDf.callback(findValueResult)
             elif len(activeContacts) >= constants.k or (closestNode[0] == closestNode[1] and closestNode[0] != None):
                 # Ok, we're done; either we have accumulated k active contacts or
                 # no improvement in closestNode has been noted
@@ -630,9 +631,9 @@ class Node(object):
             #print '  refreshNexKbucket called; bucketindex is', bucketIndex[0]
             bucketIndex[0] += 1
             while bucketIndex[0] < 160:
-                if force or (time.time() - self._buckets[bucketIndex[0]].lastAccessed >= constants.refreshTimeout):
+                if force or (int(time.time()) - self._buckets[bucketIndex[0]].lastAccessed >= constants.refreshTimeout):
                     searchID = self._randomIDInBucketRange(bucketIndex[0])
-                    self._buckets[bucketIndex[0]].lastAccessed = time.time()
+                    self._buckets[bucketIndex[0]].lastAccessed = int(time.time())
                     #print '  refreshing bucket',bucketIndex[0]
                     df = self.iterativeFindNode(searchID)
                     df.addCallback(refreshNextKBucket)
@@ -660,9 +661,9 @@ class Node(object):
         C{(key, value pairs)} that need to be republished/expired """
         #print 'republishData called'
         for key in self._dataStore:
-            now = time.time()
+            now = int(time.time())
             originalPublisherID = self._dataStore.originalPublisherID(key)
-            age = now - self._dataStore.originallyPublished(key)
+            age = now - self._dataStore.originalPublishTime(key)
             if originalPublisherID == self.id:
                 # This node is the original publisher; it has to republish
                 # the data before it expires (24 hours in basic Kademlia)
