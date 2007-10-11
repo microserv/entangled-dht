@@ -1,4 +1,10 @@
 #! /usr/bin/env python
+#
+# This library is free software, distributed under the terms of
+# the GNU Lesser General Public License Version 3, or any later version.
+# See the COPYING file included in this archive
+#
+
 import pygtk
 pygtk.require('2.0')
 import sys, gtk, gobject, cairo

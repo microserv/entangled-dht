@@ -76,7 +76,7 @@ class Node(object):
 #            return 160
 #        df.addCallback(getBucketAfterNeighbour)
 #        df.addCallback(self._refreshKBuckets)
-        protocol.reactor.callLater(10, self.printContacts)
+        #protocol.reactor.callLater(10, self.printContacts)
         # Start refreshing k-buckets periodically, if necessary
         protocol.reactor.callLater(constants.checkRefreshInterval, self._refreshNode)
         protocol.reactor.run()
