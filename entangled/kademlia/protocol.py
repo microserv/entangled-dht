@@ -41,7 +41,8 @@ class KademliaProtocol(protocol.DatagramProtocol):
                     method, in the correct order
         @type args: tuple
         @param rawResponse: If this is set to C{True}, the caller of this RPC
-                            will receive the actual response message object as
+                            will receive a tuple containing the actual response
+                            message object and the originating address tuple as
                             a result; in other words, it will not be
                             interpreted by this class. Unless something special
                             needs to be done with the metadata associated with
@@ -72,7 +73,7 @@ class KademliaProtocol(protocol.DatagramProtocol):
         return df
     
     def datagramReceived(self, datagram, address):
-        """ Handles and parses incoming RPC messages (and responses 
+        """ Handles and parses incoming RPC messages (and responses)
         
         @note: This is automatically called by Twisted when the protocol
                receives a UDP datagram
@@ -96,8 +97,8 @@ class KademliaProtocol(protocol.DatagramProtocol):
                 del self._sentMessages[message.id]
                 
                 if hasattr(df, '_rpcRawResponse'):
-                    # The RPC requested that the raw response message be returned; do not interpret it
-                    df.callback(message)
+                    # The RPC requested that the raw response message and originating address be returned; do not interpret it
+                    df.callback((message, address))
                 elif isinstance(message, msgtypes.ErrorMessage):
                     # The RPC request raised a remote exception; raise it locally
                     if message.exceptionType.startswith('exceptions.'):

@@ -16,9 +16,17 @@ class BucketFull(Exception):
 class KBucket(object):
     """ Description - later
     """
-    def __init__(self):
-        self._contacts = list()
+    def __init__(self, rangeMin, rangeMax):
+        """
+        @param rangeMin: The lower boundary for the range in the 160-bit ID
+                         space covered by this k-bucket
+        @param rangeMax: The upper boundary for the range in the ID space
+                         covered by this k-bucket
+        """
         self.lastAccessed = 0
+        self.rangeMin = rangeMin
+        self.rangeMax = rangeMax
+        self._contacts = list()
 
     def addContact(self, contact):
         """ Add contact to _contact list in the right order. This will move the
@@ -73,10 +81,8 @@ class KBucket(object):
         currentLen = len(self._contacts)
 
         # If count greater than k - return only k contacts
-        # !!VERIFY!! behaviour
         if count > constants.k:
             count = constants.k
-            raise IndexError('Count value too big adjusting to bucket size')
 
         # Check if count value in range and,
         # if count number of contacts are available
@@ -106,5 +112,22 @@ class KBucket(object):
         """
         self._contacts.remove(contact)
     
+    def keyInRange(self, key):
+        """ Tests whether the specified key (i.e. node ID) is in the range
+        of the 160-bit ID space covered by this k-bucket (in otherwords, it
+        returns whether or not the specified key should be placed in this
+        k-bucket)
+        
+        @param key: The key to test
+        @type key: str or int
+        
+        @return: C{True} if the key is in this k-bucket's range, or C{False}
+                 if not.
+        @rtype: bool
+        """
+        if isinstance(key, str):
+            key = long(key.encode('hex'), 16)
+        return self.rangeMin <= key < self.rangeMax
+
     def __len__(self):
         return len(self._contacts)

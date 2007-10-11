@@ -93,8 +93,8 @@ class EntangledViewer(gtk.DrawingArea):
         
         blips = []
         kbucket = {}
-        for i in range(160):
-            for contact in self.node._buckets[i]._contacts:    
+        for i in range(len(self.node._routingTable._buckets)):
+            for contact in self.node._routingTable._buckets[i]._contacts:    
                 blips.append(contact)
                 kbucket[contact.id] = i
         # ...and now circles for all the other nodes
@@ -198,13 +198,13 @@ class EntangledViewer(gtk.DrawingArea):
     def drawComms(self, contactID, msg):
         if contactID not in self.comms:
             self.comms[contactID] = msg
-            gobject.timeout_add(500, self.removeComm, contactID)
+            gobject.timeout_add(750, self.removeComm, contactID)
             self.window.invalidate_rect(self.allocation, False)
     
     def drawIncomingComms(self, contactID, msg):
         if contactID not in self.incomingComms:
             self.incomingComms[contactID] = msg
-            gobject.timeout_add(500, self.removeIncomingComm, contactID)
+            gobject.timeout_add(750, self.removeIncomingComm, contactID)
             self.window.invalidate_rect(self.allocation, False)
     
     def removeIncomingComm(self, contactID):
@@ -268,8 +268,8 @@ if __name__ == "__main__":
         knownNodes = None
     window = gtk.Window()
     window.set_default_size(640, 640)
+    window.set_title('Entangled Viewer - DHT on port %s' % sys.argv[1])
     window.connect("delete-event", gtk.main_quit)
-    
     
     vbox = gtk.VBox(spacing=3)
     window.add(vbox)
@@ -279,12 +279,6 @@ if __name__ == "__main__":
     widget.show()
     
     vbox.pack_start(widget)
-    
-    #button = gtk.Button(stock=gtk.STOCK_QUIT)
-    #vbox.pack_start(button, expand=False, fill=False)
-    #button.connect("clicked", lambda widget, window=window: window.destroy())
-    #button.show()
-
     
     hbox = gtk.HBox(False, 8)
     hbox.show()
