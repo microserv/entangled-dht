@@ -88,7 +88,7 @@ class NodeContactTest(unittest.TestCase):
         # Now add it...
         self.node.addContact(contact)
         # ...and request the closest nodes to it using FIND_NODE
-        closestNodes = self.node._findCloseNodes(contactID, kademlia.constants.k)
+        closestNodes = self.node._routingTable.findCloseNodes(contactID, kademlia.constants.k)
         self.failUnlessEqual(len(closestNodes), 1, 'Wrong amount of contacts returned; expected 1, got %d' % len(closestNodes))
         self.failUnless(contact in closestNodes, 'Added contact not found by issueing _findCloseNodes()')
         
@@ -100,7 +100,7 @@ class NodeContactTest(unittest.TestCase):
         # Now try to add it
         self.node.addContact(contact)
         # ...and request the closest nodes to it using FIND_NODE
-        closestNodes = self.node._findCloseNodes(self.node.id, kademlia.constants.k)
+        closestNodes = self.node._routingTable.findCloseNodes(self.node.id, kademlia.constants.k)
         self.failIf(contact in closestNodes, 'Node added itself as a contact')
 
 
@@ -116,15 +116,15 @@ class NodeLookupTest(unittest.TestCase):
             self.remoteNodes.append(remoteNode)
             self.node.addContact(remoteContact)
 
-    def testIterativeFindNode(self):
-        """ Ugly brute-force test to see if the iterative node lookup algorithm runs without failing """
-        import kademlia.protocol
-        kademlia.protocol.reactor.listenUDP(91826, self.node._protocol)
-        for i in range(10):
-            kademlia.protocol.reactor.listenUDP(91827+i, self.remoteNodes[i]._protocol)
-        df = self.node.iterativeFindNode(self.node.id)
-        df.addBoth(lambda _: kademlia.protocol.reactor.stop())
-        kademlia.protocol.reactor.run()
+#    def testIterativeFindNode(self):
+#        """ Ugly brute-force test to see if the iterative node lookup algorithm runs without failing """
+#        import kademlia.protocol
+#        kademlia.protocol.reactor.listenUDP(91826, self.node._protocol)
+#        for i in range(10):
+#            kademlia.protocol.reactor.listenUDP(91827+i, self.remoteNodes[i]._protocol)
+#        df = self.node.iterativeFindNode(self.node.id)
+#        df.addBoth(lambda _: kademlia.protocol.reactor.stop())
+#        kademlia.protocol.reactor.run()
 
 
 def suite():

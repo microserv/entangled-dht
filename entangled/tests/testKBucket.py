@@ -13,7 +13,7 @@ import kademlia.constants
 class KBucketTest(unittest.TestCase):
     """ Test case for the KBucket class """
     def setUp(self):
-        self.kbucket = kademlia.kbucket.KBucket()
+        self.kbucket = kademlia.kbucket.KBucket(0, 2**160)
 
     def testAddContact(self):
         """ Tests if the bucket handles contact additions/updates correctly """
@@ -39,14 +39,22 @@ class KBucketTest(unittest.TestCase):
         result = self.kbucket.getContacts(2)
         self.failIf(len(result) != 0, "Returned list should be empty; returned list length: %d" % (len(result)))
 
+
         # Add k-2 contacts
-        for i in range(kademlia.constants.k-2):
-            tmpContact = contact.Contact(i,i,i,i)
-            self.kbucket.addContact(tmpContact)
+        if kademlia.constants.k >= 2:
+            for i in range(kademlia.constants.k-2):
+                tmpContact = contact.Contact(i,i,i,i)
+                self.kbucket.addContact(tmpContact)
+        else:
+            # add k contacts
+            for i in range(kademlia.constants.k):
+                tmpContact = contact.Contact(i,i,i,i)
+                self.kbucket.addContact(tmpContact)
 
         # try to get too many contacts
-        # requested count greater than bucket size
-        self.failUnlessRaises(IndexError, self.kbucket.getContacts, kademlia.constants.k+3)
+        # requested count greater than bucket size; should return at most k contacts
+        contacts = self.kbucket.getContacts(kademlia.constants.k+3)
+        self.failUnless(len(contacts) <= kademlia.constants.k, 'Returned list should not have more than k entries!')
 
         # verify returned contacts in list
         for i in range(kademlia.constants.k-2):
@@ -54,13 +62,19 @@ class KBucketTest(unittest.TestCase):
         
         # try to get too many contacts
         # requested count one greater than number of contacts
-        result = self.kbucket.getContacts(kademlia.constants.k-1)
-        self.failIf(len(result) != kademlia.constants.k-2, "Too many contacts in returned list %s - should be %s" % (len(result), kademlia.constants.k-2))
-
-        # try to get contacts
-        # requested count less than contact number
-        result = self.kbucket.getContacts(kademlia.constants.k-3)
-        self.failIf(len(result) != kademlia.constants.k-3, "Too many contacts in returned list %s - should be %s" % (len(result), kademlia.constants.k-3))
+        if kademlia.constants.k >= 2:
+            result = self.kbucket.getContacts(kademlia.constants.k-1)
+            self.failIf(len(result) != kademlia.constants.k-2, "Too many contacts in returned list %s - should be %s" % (len(result), kademlia.constants.k-2))
+        else:
+            result = self.kbucket.getContacts(kademlia.constants.k-1)
+            # if the count is <= 0, it should return all of it's contats
+            self.failIf(len(result) != kademlia.constants.k, "Too many contacts in returned list %s - should be %s" % (len(result), kademlia.constants.k-2))
+        
+            # try to get contacts
+            # requested count less than contact number
+        if kademlia.constants.k >= 3:
+            result = self.kbucket.getContacts(kademlia.constants.k-3)
+            self.failIf(len(result) != kademlia.constants.k-3, "Too many contacts in returned list %s - should be %s" % (len(result), kademlia.constants.k-3))
 
     def testRemoveContact(self):
         # try remove contact from empty list

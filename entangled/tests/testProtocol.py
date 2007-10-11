@@ -58,7 +58,7 @@ class FakeNode(object):
         
 
 class KademliaProtocolTest(unittest.TestCase):
-    """ Test case for the NodePresence class """
+    """ Test case for the Protocol class """
     def setUp(self):
         del kademlia.protocol.reactor
         kademlia.protocol.reactor = twisted.internet.selectreactor.SelectReactor()
