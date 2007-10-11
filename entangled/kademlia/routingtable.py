@@ -10,6 +10,7 @@ import time
 import constants
 from contact import Contact
 import kbucket
+from protocol import TimeoutError
 
 class RoutingTable(object):
     """ Interface for RPC message translators/formatters
@@ -151,7 +152,7 @@ class TreeRoutingTable(RoutingTable):
                     
                     @type failure: twisted.python.failure.Failure
                     """
-                    failure.trap(protocol.TimeoutError)
+                    failure.trap(TimeoutError)
                     # Remove the old contact...
                     self._buckets[bucketIndex].removeContact(contactID)
                     # ...and add the new one at the tail of the bucket
