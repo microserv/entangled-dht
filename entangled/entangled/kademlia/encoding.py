@@ -64,11 +64,6 @@ class Bencode(Encoding):
                 encodedDictItems += self.encode(key)
                 encodedDictItems += self.encode(data[key])
             return 'd%se' % encodedDictItems
-        elif type(data) == bool:
-            if data:
-                return 'i1e'
-            else:
-                return 'i0e'
         else:
             raise TypeError, "Cannot bencode '%s' object" % type(data)
     

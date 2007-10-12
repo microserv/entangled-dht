@@ -53,6 +53,9 @@ class DataStore(UserDict.DictMixin):
         """ Convenience wrapper to C{setItem}; this accepts a tuple in the
         format: (value, lastPublished, originallyPublished, originalPublisherID) """
         self.setItem(key, *value)
+    
+    def __delitem__(self, key):
+        """ Delete the specified key (and its value) """
 
 class DictDataStore(DataStore):
     """ A datastore using an in-memory Python dictionary """
@@ -96,6 +99,10 @@ class DictDataStore(DataStore):
     def __getitem__(self, key):
         """ Get the value identified by C{key} """
         return self._dict[key][0]
+    
+    def __delitem__(self, key):
+        """ Delete the specified key (and its value) """ 
+        del self._dict[key]
 
 
 class SQLiteDataStore(DataStore):
@@ -157,3 +164,6 @@ class SQLiteDataStore(DataStore):
     
     def __getitem__(self, key):
         return self._dbQuery(key, 'value')
+
+    def __delitem__(self, key):
+        self._cursor.execute("delete from data where key=:reqKey", {'reqKey': key})

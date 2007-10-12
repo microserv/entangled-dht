@@ -11,12 +11,12 @@ import sys, gtk, gobject, cairo
 import math
 
 from twisted.internet.gtk2reactor import Gtk2Reactor
-import kademlia.protocol
-kademlia.protocol.reactor = Gtk2Reactor()
-import kademlia.node
+import entangled.kademlia.protocol
+entangled.kademlia.protocol.reactor = Gtk2Reactor()
+import entangled.node
 
-import kademlia.contact
-import kademlia.msgtypes
+import entangled.kademlia.contact
+import entangled.kademlia.msgtypes
 
 import hashlib
 
@@ -43,9 +43,9 @@ class EntangledViewer(gtk.DrawingArea):
     def __guiDatagramReceived(self, datagram, address):
         msgPrimitive = self.node._protocol._encoder.decode(datagram)
         message = self.node._protocol._translator.fromPrimitive(msgPrimitive)
-        if isinstance(message, kademlia.msgtypes.ErrorMessage):
+        if isinstance(message, entangled.kademlia.msgtypes.ErrorMessage):
             msg = 'error'
-        elif isinstance(message, kademlia.msgtypes.ResponseMessage):
+        elif isinstance(message, entangled.kademlia.msgtypes.ResponseMessage):
             msg = 'response'
         else:
             msg = message.request
@@ -261,13 +261,21 @@ class EntangledViewer(gtk.DrawingArea):
         df = self.node.iterativeFindValue(hKey)
         df.addCallback(showValue)
         df.addErrback(error)
+    
+    def deleteValue(self, sender, keyFunc):
+        key = keyFunc()
         
+        h = hashlib.sha1()
+        h.update(key)
+        hKey = h.digest()
+        
+        self.node.iterativeDelete(hKey)
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         print 'Usage:\n%s UDP_PORT KNOWN_NODE_IP KNOWN_NODE_PORT' % sys.argv[0]
         sys.exit(1)
-    node = kademlia.node.Node()
+    node = entangled.node.Node()
     if len(sys.argv) == 4:
         knownNodes = [(sys.argv[2], int(sys.argv[3]))]
     else:
@@ -301,7 +309,6 @@ if __name__ == "__main__":
     entryValue = gtk.Entry()
     hbox.pack_start(entryValue, expand=True, fill=True)
     entryValue.show()
-    
     button = gtk.Button('Publish')
     hbox.pack_start(button, expand=False, fill=False)
     button.connect("clicked", widget.publishValue, entryKey.get_text, entryValue.get_text)
@@ -322,12 +329,25 @@ if __name__ == "__main__":
     labelValue = gtk.Label('---unknown---')
     hbox.pack_start(labelValue, expand=True, fill=True)
     labelValue.show()
-    
     button = gtk.Button('Retrieve')
     hbox.pack_start(button, expand=False, fill=False)
     button.connect("clicked", widget.getValue, entryKey, labelValue.set_text)
     button.show()
     
+    # Non-Kademlia stuff
+    hbox = gtk.HBox(False, 8)
+    hbox.show()
+    vbox.pack_start(hbox, expand=False, fill=False)
+    label = gtk.Label("Key:")
+    hbox.pack_start(label, False, False, 0)
+    label.show()
+    entryKey = gtk.Entry()
+    hbox.pack_start(entryKey, expand=True, fill=True)
+    entryKey.show()
+    button = gtk.Button('Delete')
+    hbox.pack_start(button, expand=False, fill=False)
+    button.connect("clicked", widget.deleteValue, entryKey.get_text)
+    button.show()
     
     #window.add(widget)
     window.present()

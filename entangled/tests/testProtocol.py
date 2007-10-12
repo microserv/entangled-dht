@@ -11,10 +11,10 @@ from twisted.internet import defer
 from twisted.python import failure
 import twisted.internet.selectreactor
 
-import kademlia.protocol
-import kademlia.contact
-import kademlia.constants
-from kademlia.node import rpcmethod
+import entangled.kademlia.protocol
+import entangled.kademlia.contact
+import entangled.kademlia.constants
+from entangled.kademlia.node import rpcmethod
 
 class FakeNode(object):
     """ A fake node object implementing some RPC and non-RPC methods to 
@@ -47,7 +47,7 @@ class FakeNode(object):
         on a timeout """
         df = protocol.sendRPC(contact, 'ping', {})
         def handleError(f):
-            if f.check(kademlia.protocol.TimeoutError):
+            if f.check(entangled.kademlia.protocol.TimeoutError):
                 self.removeContact(contact)
                 return f
             else:
@@ -60,40 +60,40 @@ class FakeNode(object):
 class KademliaProtocolTest(unittest.TestCase):
     """ Test case for the Protocol class """
     def setUp(self):
-        del kademlia.protocol.reactor
-        kademlia.protocol.reactor = twisted.internet.selectreactor.SelectReactor()
+        del entangled.kademlia.protocol.reactor
+        entangled.kademlia.protocol.reactor = twisted.internet.selectreactor.SelectReactor()
         self.node = FakeNode('node1')
-        self.protocol = kademlia.protocol.KademliaProtocol(self.node)
+        self.protocol = entangled.kademlia.protocol.KademliaProtocol(self.node)
 
     def testReactor(self):
         """ Tests if the reactor can start/stop the protocol correctly """
-        kademlia.protocol.reactor.listenUDP(0, self.protocol)
-        kademlia.protocol.reactor.callLater(0, kademlia.protocol.reactor.stop)
-        kademlia.protocol.reactor.run()
+        entangled.kademlia.protocol.reactor.listenUDP(0, self.protocol)
+        entangled.kademlia.protocol.reactor.callLater(0, entangled.kademlia.protocol.reactor.stop)
+        entangled.kademlia.protocol.reactor.run()
 
     def testRPCTimeout(self):
         """ Tests if a RPC message sent to a dead remote node times out correctly """
-        deadContact = kademlia.contact.Contact('node2', '127.0.0.1', 91824, self.protocol)
+        deadContact = entangled.kademlia.contact.Contact('node2', '127.0.0.1', 91824, self.protocol)
         self.node.addContact(deadContact)
         # Make sure the contact was added
         self.failIf(deadContact not in self.node.contacts, 'Contact not added to fake node (error in test code)')
         # Set the timeout to 0 for testing
-        tempTimeout = kademlia.constants.rpcTimeout
-        kademlia.constants.rpcTimeout = 0
-        kademlia.protocol.reactor.listenUDP(0, self.protocol)            
+        tempTimeout = entangled.kademlia.constants.rpcTimeout
+        entangled.kademlia.constants.rpcTimeout = 0
+        entangled.kademlia.protocol.reactor.listenUDP(0, self.protocol)            
         # Run the PING RPC (which should timeout)
         df = self.node.indirectPingContact(self.protocol, deadContact)
         # Stop the reactor if a result arrives (timeout or not)
-        df.addBoth(lambda _: kademlia.protocol.reactor.stop())
-        kademlia.protocol.reactor.run()
+        df.addBoth(lambda _: entangled.kademlia.protocol.reactor.stop())
+        entangled.kademlia.protocol.reactor.run()
         # See if the contact was removed due to the timeout
         self.failIf(deadContact in self.node.contacts, 'Contact was not removed after RPC timeout; check exception types.')
         # Restore the global timeout
-        kademlia.constants.rpcTimeout = tempTimeout
+        entangled.kademlia.constants.rpcTimeout = tempTimeout
         
     def testRPCRequest(self):
         """ Tests if a valid RPC request is executed and responded to correctly """
-        remoteContact = kademlia.contact.Contact('node2', '127.0.0.1', 91824, self.protocol)
+        remoteContact = entangled.kademlia.contact.Contact('node2', '127.0.0.1', 91824, self.protocol)
         self.node.addContact(remoteContact)
         self.error = None
         def handleError(f):
@@ -103,13 +103,13 @@ class KademliaProtocolTest(unittest.TestCase):
             if result != expectedResult:
                 self.error = 'Result from RPC is incorrect; expected "%s", got "%s"' % (expectedResult, result)
         # Publish the "local" node on the network    
-        kademlia.protocol.reactor.listenUDP(91824, self.protocol)
+        entangled.kademlia.protocol.reactor.listenUDP(91824, self.protocol)
         # Simulate the RPC
         df = remoteContact.ping()
         df.addCallback(handleResult)
         df.addErrback(handleError)
-        df.addBoth(lambda _: kademlia.protocol.reactor.stop())
-        kademlia.protocol.reactor.run()
+        df.addBoth(lambda _: entangled.kademlia.protocol.reactor.stop())
+        entangled.kademlia.protocol.reactor.run()
         self.failIf(self.error, self.error)
         # The list of sent RPC messages should be empty at this stage
         self.failUnlessEqual(len(self.protocol._sentMessages), 0, 'The protocol is still waiting for a RPC result, but the transaction is already done!')
@@ -120,7 +120,7 @@ class KademliaProtocolTest(unittest.TestCase):
         Verifies that a RPC request for an existing but unpublished
         method is denied, and that the associated (remote) exception gets
         raised locally """
-        remoteContact = kademlia.contact.Contact('node2', '127.0.0.1', 91824, self.protocol)
+        remoteContact = entangled.kademlia.contact.Contact('node2', '127.0.0.1', 91824, self.protocol)
         self.node.addContact(remoteContact)
         self.error = None
         def handleError(f):
@@ -135,20 +135,20 @@ class KademliaProtocolTest(unittest.TestCase):
         def handleResult(result):
             self.error = 'The remote method executed successfully, returning: "%s"; this RPC should not have been allowed.' % result
         # Publish the "local" node on the network    
-        kademlia.protocol.reactor.listenUDP(91824, self.protocol)
+        entangled.kademlia.protocol.reactor.listenUDP(91824, self.protocol)
         # Simulate the RPC
         df = remoteContact.pingNoRPC()
         df.addCallback(handleResult)
         df.addErrback(handleError)
-        df.addBoth(lambda _: kademlia.protocol.reactor.stop())
-        kademlia.protocol.reactor.run()
+        df.addBoth(lambda _: entangled.kademlia.protocol.reactor.stop())
+        entangled.kademlia.protocol.reactor.run()
         self.failIf(self.error, self.error)
         # The list of sent RPC messages should be empty at this stage
         self.failUnlessEqual(len(self.protocol._sentMessages), 0, 'The protocol is still waiting for a RPC result, but the transaction is already done!')
 
     def testRPCRequestArgs(self):
         """ Tests if an RPC requiring arguments is executed correctly """
-        remoteContact = kademlia.contact.Contact('node2', '127.0.0.1', 91824, self.protocol)
+        remoteContact = entangled.kademlia.contact.Contact('node2', '127.0.0.1', 91824, self.protocol)
         self.node.addContact(remoteContact)
         self.error = None
         def handleError(f):
@@ -158,13 +158,13 @@ class KademliaProtocolTest(unittest.TestCase):
             if result != 'This should be returned.':
                 self.error = 'Result from RPC is incorrect; expected "%s", got "%s"' % (expectedResult, result)
         # Publish the "local" node on the network    
-        kademlia.protocol.reactor.listenUDP(91824, self.protocol)
+        entangled.kademlia.protocol.reactor.listenUDP(91824, self.protocol)
         # Simulate the RPC
         df = remoteContact.echo('This should be returned.')
         df.addCallback(handleResult)
         df.addErrback(handleError)
-        df.addBoth(lambda _: kademlia.protocol.reactor.stop())
-        kademlia.protocol.reactor.run()
+        df.addBoth(lambda _: entangled.kademlia.protocol.reactor.stop())
+        entangled.kademlia.protocol.reactor.run()
         self.failIf(self.error, self.error)
         # The list of sent RPC messages should be empty at this stage
         self.failUnlessEqual(len(self.protocol._sentMessages), 0, 'The protocol is still waiting for a RPC result, but the transaction is already done!')

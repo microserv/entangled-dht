@@ -7,13 +7,13 @@
 import hashlib
 import unittest
 
-import kademlia.node
-import kademlia.constants
+import entangled.kademlia.node
+import entangled.kademlia.constants
 
 class NodeIDTest(unittest.TestCase):
     """ Test case for the Node class's ID """
     def setUp(self):
-        self.node = kademlia.node.Node()
+        self.node = entangled.kademlia.node.Node()
 
     def testAutoCreatedID(self):
         """ Tests if a new node has a valid node ID """
@@ -58,7 +58,7 @@ class NodeIDTest(unittest.TestCase):
 class NodeDataTest(unittest.TestCase):
     """ Test case for the Node class's data-related functions """
     def setUp(self):
-        self.node = kademlia.node.Node()
+        self.node = entangled.kademlia.node.Node()
         self.cases = (('a', 'hello there\nthis is a test'),
                      ('b', unicode('jasdklfjklsdj;f2352352ljklzsdlkjkasf\ndsjklafsd')),
                      ('e', 123),
@@ -75,56 +75,56 @@ class NodeDataTest(unittest.TestCase):
 class NodeContactTest(unittest.TestCase):
     """ Test case for the Node class's contact management-related functions """
     def setUp(self):
-        self.node = kademlia.node.Node()
+        self.node = entangled.kademlia.node.Node()
     
     def testAddContact(self):
         """ Tests if a contact can be added and retrieved correctly """
-        import kademlia.contact
+        import entangled.kademlia.contact
         # Create the contact
         h = hashlib.sha1()
         h.update('node1')
         contactID = h.digest()
-        contact = kademlia.contact.Contact(contactID, '127.0.0.1', 91824, self.node._protocol)
+        contact = entangled.kademlia.contact.Contact(contactID, '127.0.0.1', 91824, self.node._protocol)
         # Now add it...
         self.node.addContact(contact)
         # ...and request the closest nodes to it using FIND_NODE
-        closestNodes = self.node._routingTable.findCloseNodes(contactID, kademlia.constants.k)
+        closestNodes = self.node._routingTable.findCloseNodes(contactID, entangled.kademlia.constants.k)
         self.failUnlessEqual(len(closestNodes), 1, 'Wrong amount of contacts returned; expected 1, got %d' % len(closestNodes))
         self.failUnless(contact in closestNodes, 'Added contact not found by issueing _findCloseNodes()')
         
     def testAddSelfAsContact(self):
         """ Tests the node's behaviour when attempting to add itself as a contact """
-        import kademlia.contact
+        import entangled.kademlia.contact
         # Create a contact with the same ID as the local node's ID
-        contact = kademlia.contact.Contact(self.node.id, '127.0.0.1', 91824, None)
+        contact = entangled.kademlia.contact.Contact(self.node.id, '127.0.0.1', 91824, None)
         # Now try to add it
         self.node.addContact(contact)
         # ...and request the closest nodes to it using FIND_NODE
-        closestNodes = self.node._routingTable.findCloseNodes(self.node.id, kademlia.constants.k)
+        closestNodes = self.node._routingTable.findCloseNodes(self.node.id, entangled.kademlia.constants.k)
         self.failIf(contact in closestNodes, 'Node added itself as a contact')
 
 
 class NodeLookupTest(unittest.TestCase):
     """ Test case for the Node class's iterative node lookup algorithm """
     def setUp(self):
-        import kademlia.contact
-        self.node = kademlia.node.Node()
+        import entangled.kademlia.contact
+        self.node = entangled.kademlia.node.Node()
         self.remoteNodes = []
         for i in range(10):
-            remoteNode = kademlia.node.Node()
-            remoteContact = kademlia.contact.Contact(remoteNode.id, '127.0.0.1', 91827+i, self.node._protocol)
+            remoteNode = entangled.kademlia.node.Node()
+            remoteContact = entangled.kademlia.contact.Contact(remoteNode.id, '127.0.0.1', 91827+i, self.node._protocol)
             self.remoteNodes.append(remoteNode)
             self.node.addContact(remoteContact)
 
 #    def testIterativeFindNode(self):
 #        """ Ugly brute-force test to see if the iterative node lookup algorithm runs without failing """
-#        import kademlia.protocol
-#        kademlia.protocol.reactor.listenUDP(91826, self.node._protocol)
+#        import entangled.kademlia.protocol
+#        entangled.kademlia.protocol.reactor.listenUDP(91826, self.node._protocol)
 #        for i in range(10):
-#            kademlia.protocol.reactor.listenUDP(91827+i, self.remoteNodes[i]._protocol)
+#            entangled.kademlia.protocol.reactor.listenUDP(91827+i, self.remoteNodes[i]._protocol)
 #        df = self.node.iterativeFindNode(self.node.id)
-#        df.addBoth(lambda _: kademlia.protocol.reactor.stop())
-#        kademlia.protocol.reactor.run()
+#        df.addBoth(lambda _: entangled.kademlia.protocol.reactor.stop())
+#        entangled.kademlia.protocol.reactor.run()
 
 
 def suite():

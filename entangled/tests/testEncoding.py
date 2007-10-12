@@ -6,16 +6,14 @@
 
 import unittest
 
-import kademlia.encoding
+import entangled.kademlia.encoding
 
 class BencodeTest(unittest.TestCase):
     """ Basic tests case for the Bencode implementation """
     def setUp(self):
-        self.encoding = kademlia.encoding.Bencode()
+        self.encoding = entangled.kademlia.encoding.Bencode()
         # Thanks goes to wikipedia for the initial test cases ;-)
-        self.cases = ((True, 'i1e'),
-                      (False, 'i0e'),
-                      (42, 'i42e'),
+        self.cases = ((42, 'i42e'),
                       ('spam', '4:spam'),
                       (['spam',42], 'l4:spami42ee'),
                       ({'foo':42, 'bar':'spam'}, 'd3:bar4:spam3:fooi42ee'),

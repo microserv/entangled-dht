@@ -6,8 +6,8 @@
 
 import unittest
 
-from kademlia.msgtypes import Message, RequestMessage, ResponseMessage, ErrorMessage
-from kademlia.msgformat import MessageTranslator, DefaultFormat
+from entangled.kademlia.msgtypes import Message, RequestMessage, ResponseMessage, ErrorMessage
+from entangled.kademlia.msgformat import MessageTranslator, DefaultFormat
 
 class DefaultFormatTranslatorTest(unittest.TestCase):
     """ Test case for the default message translator """
@@ -39,7 +39,7 @@ class DefaultFormatTranslatorTest(unittest.TestCase):
                         DefaultFormat.headerPayload: [('H\x89\xb0\xf4\xc9\xe6\xc5`H>\xd5\xc2\xc5\xe8Od\xf1\xca\xfa\x82', '127.0.0.1', 1919), ('\xae\x9ey\x93\xdd\xeb\xf1^\xff\xc5\x0f\xf8\xac!\x0e\x03\x9fY@{', '127.0.0.1', 1921)]})
                       )
         self.translator = DefaultFormat()
-        self.failUnless(isinstance(self.translator, MessageTranslator), 'Translator class must inherit from kademlia.msgformat.MessageTranslator!')
+        self.failUnless(isinstance(self.translator, MessageTranslator), 'Translator class must inherit from entangled.kademlia.msgformat.MessageTranslator!')
 
     def testToPrimitive(self):
         """ Tests translation from a Message object to a primitive """

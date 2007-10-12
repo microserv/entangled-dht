@@ -6,15 +6,15 @@
 
 import unittest
 
-import kademlia.contact
+import entangled.kademlia.contact
 
 class ContactOperatorsTest(unittest.TestCase):
     """ Basic tests case for boolean operators on the Contact class """
     def setUp(self):
-        self.firstContact = kademlia.contact.Contact('firstContactID', '127.0.0.1', 1000, None, 1)
-        self.secondContact = kademlia.contact.Contact('2ndContactID', '192.168.0.1', 1000, None, 32)
-        self.secondContactCopy = kademlia.contact.Contact('2ndContactID', '192.168.0.1', 1000, None, 32)
-        self.firstContactDifferentValues = kademlia.contact.Contact('firstContactID', '192.168.1.20', 1000, None, 50)
+        self.firstContact = entangled.kademlia.contact.Contact('firstContactID', '127.0.0.1', 1000, None, 1)
+        self.secondContact = entangled.kademlia.contact.Contact('2ndContactID', '192.168.0.1', 1000, None, 32)
+        self.secondContactCopy = entangled.kademlia.contact.Contact('2ndContactID', '192.168.0.1', 1000, None, 32)
+        self.firstContactDifferentValues = entangled.kademlia.contact.Contact('firstContactID', '192.168.1.20', 1000, None, 50)
 
     def testBoolean(self):
         """ Test "equals" and "not equals" comparisons """

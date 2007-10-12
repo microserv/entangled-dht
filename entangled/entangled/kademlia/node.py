@@ -24,7 +24,24 @@ def rpcmethod(func):
 
 class Node(object):
     def __init__(self, dataStore=None, routingTable=None, networkProtocol=None):
-        """ constructor
+        """
+        @param dataStore: The data store to use. This must be class inheriting
+                          from the C{DataStore} interface (or providing the
+                          same API). How the data store manages its data
+                          internally is up to the implementation of that data
+                          store.
+        @type dataStore: entangled.kademlia.datastore.DataStore
+        @param routingTable: The routing table to use. Since there exists some
+                             ambiguity as to how the routing table should be
+                             implemented in Kademlia, a different routing table
+                             may be used, as long as the appropriate API is
+                             exposed.
+        @type routingTable: entangled.kademlia.routingtable.RoutingTable
+        @param networkProtocol: The network protocol to use. This can be
+                                overridden from the default to (for example)
+                                change the format of the physical RPC messages
+                                being transmitted.
+        @type networkProtocol: entangled.kademlia.protocol.KademliaProtocol
         """
         self.id = self._generateID()
         # Create k-buckets (for storing contacts)
@@ -115,10 +132,12 @@ class Node(object):
         def executeStoreRPCs(nodes):
             for contact in nodes:
                 contact.store(key, value, originalPublisherID, age)
+            return nodes
         # Find k nodes closest to the key...
         df = self.iterativeFindNode(key)
         # ...and send them STORE RPCs as soon as they've been found
         df.addCallback(executeStoreRPCs)
+        return df
     
     def iterativeFindNode(self, key):
         """ The basic Kademlia node lookup operation

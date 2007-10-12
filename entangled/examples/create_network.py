@@ -44,14 +44,14 @@ if __name__ == '__main__':
     nodes = []
     print 'Creating Kademlia network...'
     try:
-        nodes.append(os.spawnlp(os.P_NOWAIT, 'python', 'python', '../kademlia/node.py', str(startPort)))
+        nodes.append(os.spawnlp(os.P_NOWAIT, 'python', 'python', '../entangled/node.py', str(startPort)))
         for i in range(amount-1):
             time.sleep(0.15)
             hashAmount = i*50/amount
             hashbar = '#'*hashAmount
             output = '\r[%-50s] %d/%d' % (hashbar, i, amount)
             sys.stdout.write(output)
-            nodes.append(os.spawnlp(os.P_NOWAIT, 'python', 'python', '../kademlia/node.py', str(port), ipAddress, str(startPort)))
+            nodes.append(os.spawnlp(os.P_NOWAIT, 'python', 'python', '../entangled/node.py', str(port), ipAddress, str(startPort)))
             port += 1
     except KeyboardInterrupt:
         '\nNetwork creation cancelled.'

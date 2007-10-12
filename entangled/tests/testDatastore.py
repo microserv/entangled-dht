@@ -7,14 +7,14 @@
 import unittest
 import time
 
-import kademlia.datastore
+import entangled.kademlia.datastore
 
 import hashlib
 
 class DataStoreTest(unittest.TestCase):
     """ Basic tests case for the reference DataStore API and implementation """
     def setUp(self):
-        self.ds = kademlia.datastore.DictDataStore()
+        self.ds = entangled.kademlia.datastore.DictDataStore()
         h = hashlib.sha1()
         h.update('g')
         hashKey = h.digest()

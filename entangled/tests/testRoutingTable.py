@@ -7,12 +7,12 @@
 import hashlib
 import unittest
 
-import kademlia.constants
-import kademlia.routingtable
-import kademlia.contact
+import entangled.kademlia.constants
+import entangled.kademlia.routingtable
+import entangled.kademlia.contact
 
 class FakeRPCProtocol(object):
-    """ Fake RPC protocol; allows kademlia.contact.Contact objects to "send" RPCs """
+    """ Fake RPC protocol; allows entangled.kademlia.contact.Contact objects to "send" RPCs """
     def sendRPC(self, *args, **kwargs):
         return FakeDeferred()
 
@@ -32,7 +32,7 @@ class TreeRoutingTableTest(unittest.TestCase):
         h.update('node1')
         self.nodeID = h.digest()
         self.protocol = FakeRPCProtocol()
-        self.routingTable = kademlia.routingtable.TreeRoutingTable(self.nodeID)
+        self.routingTable = entangled.kademlia.routingtable.TreeRoutingTable(self.nodeID)
     
     def testAddContact(self):
         """ Tests if a contact can be added and retrieved correctly """
@@ -40,11 +40,11 @@ class TreeRoutingTableTest(unittest.TestCase):
         h = hashlib.sha1()
         h.update('node2')
         contactID = h.digest()
-        contact = kademlia.contact.Contact(contactID, '127.0.0.1', 91824, self.protocol)
+        contact = entangled.kademlia.contact.Contact(contactID, '127.0.0.1', 91824, self.protocol)
         # Now add it...
         self.routingTable.addContact(contact)
         # ...and request the closest nodes to it (will retrieve it)
-        closestNodes = self.routingTable.findCloseNodes(contactID, kademlia.constants.k)
+        closestNodes = self.routingTable.findCloseNodes(contactID, entangled.kademlia.constants.k)
         self.failUnlessEqual(len(closestNodes), 1, 'Wrong amount of contacts returned; expected 1, got %d' % len(closestNodes))
         self.failUnless(contact in closestNodes, 'Added contact not found by issueing _findCloseNodes()')
     
@@ -53,7 +53,7 @@ class TreeRoutingTableTest(unittest.TestCase):
         h = hashlib.sha1()
         h.update('node2')
         contactID = h.digest()
-        contact = kademlia.contact.Contact(contactID, '127.0.0.1', 91824, self.protocol)
+        contact = entangled.kademlia.contact.Contact(contactID, '127.0.0.1', 91824, self.protocol)
         # Now add it...
         self.routingTable.addContact(contact)
         # ...and get it again
@@ -63,11 +63,11 @@ class TreeRoutingTableTest(unittest.TestCase):
     def testAddParentNodeAsContact(self):
         """ Tests the routing table's behaviour when attempting to add its parent node as a contact """
         # Create a contact with the same ID as the local node's ID
-        contact = kademlia.contact.Contact(self.nodeID, '127.0.0.1', 91824, self.protocol)
+        contact = entangled.kademlia.contact.Contact(self.nodeID, '127.0.0.1', 91824, self.protocol)
         # Now try to add it
         self.routingTable.addContact(contact)
         # ...and request the closest nodes to it using FIND_NODE
-        closestNodes = self.routingTable.findCloseNodes(self.nodeID, kademlia.constants.k)
+        closestNodes = self.routingTable.findCloseNodes(self.nodeID, entangled.kademlia.constants.k)
         self.failIf(contact in closestNodes, 'Node added itself as a contact')
     
     def testRemoveContact(self):
@@ -76,7 +76,7 @@ class TreeRoutingTableTest(unittest.TestCase):
         h = hashlib.sha1()
         h.update('node2')
         contactID = h.digest()
-        contact = kademlia.contact.Contact(contactID, '127.0.0.1', 91824, self.protocol)
+        contact = entangled.kademlia.contact.Contact(contactID, '127.0.0.1', 91824, self.protocol)
         # Now add it...
         self.routingTable.addContact(contact)
         # Verify addition
@@ -89,18 +89,18 @@ class TreeRoutingTableTest(unittest.TestCase):
         """ Tests if the the routing table correctly dynamically splits k-buckets """
         self.failUnlessEqual(self.routingTable._buckets[0].rangeMax, 2**160, 'Initial k-bucket range should be 0 <= range < 2**160')
         # Add k contacts
-        for i in range(kademlia.constants.k):
+        for i in range(entangled.kademlia.constants.k):
             h = hashlib.sha1()
             h.update('remote node %d' % i)
             nodeID = h.digest()
-            contact = kademlia.contact.Contact(nodeID, '127.0.0.1', 91824, self.protocol)
+            contact = entangled.kademlia.contact.Contact(nodeID, '127.0.0.1', 91824, self.protocol)
             self.routingTable.addContact(contact)
         self.failUnlessEqual(len(self.routingTable._buckets), 1, 'Only k nodes have been added; the first k-bucket should now be full, but should not yet be split')
         # Now add 1 more contact
         h = hashlib.sha1()
         h.update('yet another remote node')
         nodeID = h.digest()
-        contact = kademlia.contact.Contact(nodeID, '127.0.0.1', 91824, self.protocol)
+        contact = entangled.kademlia.contact.Contact(nodeID, '127.0.0.1', 91824, self.protocol)
         self.routingTable.addContact(contact)
         self.failUnlessEqual(len(self.routingTable._buckets), 2, 'k+1 nodes have been added; the first k-bucket should have been split into two new buckets')
         self.failIfEqual(self.routingTable._buckets[0].rangeMax, 2**160, 'K-bucket was split, but its range was not properly adjusted')
@@ -112,22 +112,22 @@ class TreeRoutingTableTest(unittest.TestCase):
         """ Test that a bucket is not split if it full, but does not cover the range containing the parent node's ID """
         self.routingTable._parentNodeID = 21*'a' # more than 160 bits; this will not be in the range of _any_ k-bucket
         # Add k contacts
-        for i in range(kademlia.constants.k):
+        for i in range(entangled.kademlia.constants.k):
             h = hashlib.sha1()
             h.update('remote node %d' % i)
             nodeID = h.digest()
-            contact = kademlia.contact.Contact(nodeID, '127.0.0.1', 91824, self.protocol)
+            contact = entangled.kademlia.contact.Contact(nodeID, '127.0.0.1', 91824, self.protocol)
             self.routingTable.addContact(contact)
         self.failUnlessEqual(len(self.routingTable._buckets), 1, 'Only k nodes have been added; the first k-bucket should now be full, and there should not be more than 1 bucket')
-        self.failUnlessEqual(len(self.routingTable._buckets[0]._contacts), kademlia.constants.k, 'Bucket should have k contacts; expected %d got %d' % (kademlia.constants.k, len(self.routingTable._buckets[0]._contacts)))
+        self.failUnlessEqual(len(self.routingTable._buckets[0]._contacts), entangled.kademlia.constants.k, 'Bucket should have k contacts; expected %d got %d' % (entangled.kademlia.constants.k, len(self.routingTable._buckets[0]._contacts)))
         # Now add 1 more contact
         h = hashlib.sha1()
         h.update('yet another remote node')
         nodeID = h.digest()
-        contact = kademlia.contact.Contact(nodeID, '127.0.0.1', 91824, self.protocol)
+        contact = entangled.kademlia.contact.Contact(nodeID, '127.0.0.1', 91824, self.protocol)
         self.routingTable.addContact(contact)
         self.failUnlessEqual(len(self.routingTable._buckets), 1, 'There should not be more than 1 bucket, since the bucket should not have been split (parent node ID not in range)')
-        self.failUnlessEqual(len(self.routingTable._buckets[0]._contacts), kademlia.constants.k, 'Bucket should have k contacts; expected %d got %d' % (kademlia.constants.k, len(self.routingTable._buckets[0]._contacts)))
+        self.failUnlessEqual(len(self.routingTable._buckets[0]._contacts), entangled.kademlia.constants.k, 'Bucket should have k contacts; expected %d got %d' % (entangled.kademlia.constants.k, len(self.routingTable._buckets[0]._contacts)))
         self.failIf(contact in self.routingTable._buckets[0]._contacts, 'New contact should have been discarded (since RPC is faked in this test)')
 
 def suite():
