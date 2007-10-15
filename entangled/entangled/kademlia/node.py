@@ -188,7 +188,7 @@ class Node(object):
                 pass
             outerDf.callback(result)
         # Execute the search
-        df = self._iterativeFind(key, findValue=True)
+        df = self._iterativeFind(key, rpc='findValue')
         df.addCallback(checkResult)
         return outerDf
 
@@ -312,7 +312,7 @@ class Node(object):
         hash.update(str(random.getrandbits(255)))  
         return hash.digest()
     
-    def _iterativeFind(self, key, startupShortlist=None, findValue=False):
+    def _iterativeFind(self, key, startupShortlist=None, rpc='findNode'):#findValue=False):
         """ The basic Kademlia iterative lookup operation (for nodes/values)
         
         This builds a list of k "closest" contacts through iterative use of
@@ -335,6 +335,10 @@ class Node(object):
                  containing the key and the found value. Otherwise, it will
                  return a list of the k closest nodes to the specified key
         """
+        if rpc != 'findNode':
+            findValue = True
+        else:
+            findValue = False
         shortlist = []
         if startupShortlist == None:
             shortlist = self._routingTable.findCloseNodes(key, constants.alpha)
@@ -362,6 +366,7 @@ class Node(object):
         pendingIterationCalls = []        
         prevClosestNode = [None]
         findValueResult = {}
+        slowNodeCount = [0]
         
         def extendShortlist(responseTuple):
             """ @type responseMsg: kademlia.msgtypes.ResponseMessage """
@@ -409,7 +414,7 @@ class Node(object):
         
         def removeFromShortlist(failure):
             """ @type failure: twisted.python.failure.Failure """
-            #print '=== timeout ==='
+            print '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!== timeout ==='
             failure.trap(protocol.TimeoutError)
             deadContactID = failure.getErrorMessage()
             if deadContactID in shortlist:
@@ -418,14 +423,17 @@ class Node(object):
                 
         def cancelActiveProbe(contactID):
             activeProbes.pop()
-            if len(activeProbes) == 0 and len(pendingIterationCalls):
+            if len(activeProbes) <= constants.alpha/2 and len(pendingIterationCalls):
                 # Force the iteration
                 pendingIterationCalls[0].cancel()
                 del pendingIterationCalls[0]
+                print 'forcing iteration ================='
                 searchIteration()
  
         # Send parallel, asynchronous FIND_NODE RPCs to the shortlist of contacts
         def searchIteration():
+            print '==> searchiteration'
+            slowNodeCount[0] = len(activeProbes)
             # Sort the discovered active nodes from closest to furthest
             activeContacts.sort(lambda firstContact, secondContact, targetKey=key: cmp(self._distance(firstContact.id, targetKey), self._distance(secondContact.id, targetKey)))      
             # This makes sure a returning probe doesn't force calling this function by mistake
@@ -437,7 +445,7 @@ class Node(object):
                 outerDf.callback(findValueResult)
                 return
             elif len(activeContacts) and findValue == False:
-                if (len(activeContacts) >= constants.k) or (activeContacts[0] == prevClosestNode[0] and len(activeProbes) == 0):
+                if (len(activeContacts) >= constants.k) or (activeContacts[0] == prevClosestNode[0] and len(activeProbes) == slowNodeCount[0]):
                     # TODO: Re-send the FIND_NODEs to all of the k closest nodes not already queried
                     # Ok, we're done; either we have accumulated k active contacts or no improvement in closestNode has been noted
                     #if len(activeContacts) >= constants.k:
@@ -454,10 +462,8 @@ class Node(object):
             for contact in shortlist:
                 if contact.id not in alreadyContacted:
                     activeProbes.append(contact.id)
-                    if findValue == True:
-                        df = contact.findValue(key, rawResponse=True)
-                    else:
-                        df = contact.findNode(key, rawResponse=True)
+                    rpcMethod = getattr(contact, rpc)
+                    df = rpcMethod(key, rawResponse=True)
                     df.addCallback(extendShortlist)
                     df.addErrback(removeFromShortlist)
                     df.addCallback(cancelActiveProbe)
@@ -465,7 +471,8 @@ class Node(object):
                     contactedNow += 1
                 if contactedNow == constants.alpha:
                     break
-            if len(activeProbes) > 0:
+            if len(activeProbes) > slowNodeCount[0]:
+                #print '----------- scheduling next call -------------'
                 # Schedule the next iteration if there are any active calls (Kademlia uses loose parallelism)
                 call = protocol.reactor.callLater(constants.iterativeLookupDelay, searchIteration)
                 pendingIterationCalls.append(call)

@@ -7,6 +7,8 @@
 
 import time
 
+from twisted.internet import defer
+
 import constants
 from contact import Contact
 import kbucket
@@ -153,8 +155,14 @@ class TreeRoutingTable(RoutingTable):
                     @type failure: twisted.python.failure.Failure
                     """
                     failure.trap(TimeoutError)
+                    print '==replacing contact=='
                     # Remove the old contact...
-                    self._buckets[bucketIndex].removeContact(contactID)
+                    deadContactID = failure.getErrorMessage()
+                    try:
+                        self._buckets[bucketIndex].removeContact(deadContactID)
+                    except ValueError:
+                        # The contact has already been removed (probably due to a timeout)
+                        pass
                     # ...and add the new one at the tail of the bucket
                     self.addContact(contact)
                 
