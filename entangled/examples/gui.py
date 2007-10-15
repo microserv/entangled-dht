@@ -241,7 +241,6 @@ class EntangledViewer(gtk.DrawingArea):
         sender.set_sensitive(False)
         key = entryKey.get_text()
         entryKey.set_sensitive(False)
-        print 'getValue called'
         h = hashlib.sha1()
         h.update(key)
         hKey = h.digest()
