@@ -16,10 +16,10 @@ alpha = 3
 k = 8
 
 # Timeout for network operations (in seconds)
-rpcTimeout = 20
+rpcTimeout = 5
 
 # Delay between iterations of iterative node lookups (for loose parallelism)  (in seconds)
-iterativeLookupDelay = rpcTimeout * 2/3
+iterativeLookupDelay = rpcTimeout / 2
 
 # If a k-bucket has not been used for this amount of time, refresh it (in seconds)
 refreshTimeout = 3600 # 1 hour
