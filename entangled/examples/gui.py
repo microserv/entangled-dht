@@ -227,7 +227,155 @@ class EntangledViewer(gtk.DrawingArea):
             self.window.invalidate_rect(self.allocation, False)
             return False
         
-    def publishValue(self, sender, keyFunc, valueFunc):
+    
+
+class EntangledViewerWindow(gtk.Window):
+    def __init__(self, node):
+        gtk.Window.__init__(self)
+        
+        self.node = node
+        self.connect("delete-event", gtk.main_quit)
+        
+        # Layout the window
+        vbox = gtk.VBox(spacing=3)
+        self.add(vbox)
+        vbox.show()
+    
+        # Add the view screen
+        self.viewer = EntangledViewer(node)
+        self.viewer.show()
+        vbox.pack_start(self.viewer)
+    
+        # Add the controls
+        notebook = gtk.Notebook()
+        notebook.set_tab_pos(pos=gtk.POS_TOP)
+        notebook.show()
+        vbox.pack_start(notebook,expand=False, fill=False)
+        #kademliaTab = gtk.NotebookTab()
+        #frame = gtk.Frame()
+        #frame.set_label('Store/retrieve (key, value) pairs in the DHT')
+        #frame.show()
+        #notebook.append_page(frame, gtk.Label('Basic Kademlia'))
+        kademliaTabVbox = gtk.VBox(spacing=3)
+        kademliaTabVbox.show()
+        #frame.add(kademliaTabVbox)
+        notebook.append_page(kademliaTabVbox, gtk.Label('Basic Kademlia'))
+
+        # Store
+        hbox = gtk.HBox(False, 8)
+        hbox.show()
+        label = gtk.Label("Key:")
+        hbox.pack_start(label, False, False, 0)
+        label.show()
+        entryKey = gtk.Entry()
+        hbox.pack_start(entryKey, expand=True, fill=True)
+        entryKey.show()
+        label = gtk.Label("Value:")
+        hbox.pack_start(label, False, False, 0)
+        label.show()
+        entryValue = gtk.Entry()
+        hbox.pack_start(entryValue, expand=True, fill=True)
+        entryValue.show()
+        button = gtk.Button('Store')
+        hbox.pack_start(button, expand=False, fill=False)
+        button.connect("clicked", self.storeValue, entryKey.get_text, entryValue.get_text)
+        button.show()
+        kademliaTabVbox.pack_start(hbox, expand=False, fill=False)
+        
+        # Find value
+        hbox = gtk.HBox(False, 8)
+        hbox.show()
+        label = gtk.Label("Key:")
+        hbox.pack_start(label, False, False, 0)
+        label.show()
+        entryKey = gtk.Entry()
+        hbox.pack_start(entryKey, expand=True, fill=True)
+        entryKey.show()
+        label = gtk.Label("Value:")
+        hbox.pack_start(label, False, False, 0)
+        label.show()
+        labelValue = gtk.Label('---unknown---')
+        hbox.pack_start(labelValue, expand=True, fill=True)
+        labelValue.show()
+        button = gtk.Button('Retrieve')
+        hbox.pack_start(button, expand=False, fill=False)
+        button.connect("clicked", self.getValue, entryKey, labelValue.set_text)
+        button.show()
+        kademliaTabVbox.pack_start(hbox, expand=False, fill=False)
+    
+        ################# Entangled-specific stuff ####################
+        #frame = gtk.Frame()
+        #frame.set_label('Store keyword-searchable data in the DHT')
+        #frame.show()
+        #notebook.append_page(frame, gtk.Label('Entangled Extensions'))
+        entangledTabVbox = gtk.VBox(spacing=3)
+        entangledTabVbox.show()
+        #frame.add(entangledTabVbox)
+        notebook.append_page(entangledTabVbox, gtk.Label('Entangled Extensions'))
+        
+        # Publish (with indexing)
+        hbox = gtk.HBox(False, 8)
+        hbox.show()
+        label = gtk.Label("Full Name:")
+        hbox.pack_start(label, False, False, 0)
+        label.show()
+        entryName = gtk.Entry()
+        hbox.pack_start(entryName, expand=True, fill=True)
+        entryName.show()
+        label = gtk.Label("Value:")
+        hbox.pack_start(label, False, False, 0)
+        label.show()
+        entryValue2 = gtk.Entry()
+        hbox.pack_start(entryValue2, expand=True, fill=True)
+        entryValue2.show()
+        button = gtk.Button('Publish')
+        hbox.pack_start(button, expand=False, fill=False)
+        button.connect("clicked", self.publishData, entryName.get_text, entryValue2.get_text)
+        button.show()
+        entangledTabVbox.pack_start(hbox, expand=False, fill=False)
+    
+        # Search for keyword
+        hbox = gtk.HBox(False, 8)
+        hbox.show()
+        label = gtk.Label("Keyword Search:")
+        hbox.pack_start(label, False, False, 0)
+        label.show()
+        entryKeyword = gtk.Entry()
+        hbox.pack_start(entryKeyword, expand=True, fill=True)
+        entryKeyword.show()
+        label = gtk.Label("Hits:")
+        hbox.pack_start(label, False, False, 0)
+        label.show()
+        labelValue2 = gtk.Label('---unknown---')
+        hbox.pack_start(labelValue2, expand=True, fill=True)
+        labelValue2.show()
+        button = gtk.Button('Search')
+        hbox.pack_start(button, expand=False, fill=False)
+        button.connect("clicked", self.searchForKeyword, entryKeyword, labelValue2.set_text)
+        button.show()
+        entangledTabVbox.pack_start(hbox, expand=False, fill=False)
+
+        # Delete
+        hbox = gtk.HBox(False, 8)
+        hbox.show()
+        label = gtk.Label("Key:")
+        hbox.pack_start(label, False, False, 0)
+        label.show()
+        entryKey = gtk.Entry()
+        hbox.pack_start(entryKey, expand=True, fill=True)
+        entryKey.show()
+        button = gtk.Button('Delete')
+        hbox.pack_start(button, expand=False, fill=False)
+        button.connect("clicked", self.deleteValue, entryKey.get_text)
+        button.show()
+        entangledTabVbox.pack_start(hbox, expand=False, fill=False)
+
+    def publishData(self, sender, nameFunc, valueFunc):
+        name = nameFunc()
+        value = valueFunc()
+        self.node.publishData(name, value)
+        
+    def storeValue(self, sender, keyFunc, valueFunc):
         key = keyFunc()
         
         h = hashlib.sha1()
@@ -250,6 +398,8 @@ class EntangledViewer(gtk.DrawingArea):
             entryKey.set_sensitive(True)
             if type(result) == dict:
                 value = result[hKey]
+                if type(value) != str:
+                    value = '%s: %s' % (type(value), str(value))
             else:
                 value = '---not found---'
             showFunc(value)
@@ -269,6 +419,26 @@ class EntangledViewer(gtk.DrawingArea):
         hKey = h.digest()
         
         self.node.iterativeDelete(hKey)
+        
+    def searchForKeyword(self, sender, entryKeyword, showFunc):
+        sender.set_sensitive(False)
+        keyword = entryKeyword.get_text()
+        entryKeyword.set_sensitive(False)
+        print '=======gui searchForKeyword called'
+        
+        def showValue(result):
+            print '/////////////////////////// GUI SHOW VALUE CALLED'
+            sender.set_sensitive(True)
+            entryKeyword.set_sensitive(True)
+            showFunc(result)
+        def error(failure):
+            sender.set_sensitive(True)
+            entryKey.set_sensitive(True)
+        
+        df = self.node.searchForKeyword(keyword)
+        df.addCallback(showValue)
+        df.addErrback(error)
+
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
@@ -279,75 +449,130 @@ if __name__ == "__main__":
         knownNodes = [(sys.argv[2], int(sys.argv[3]))]
     else:
         knownNodes = None
-    window = gtk.Window()
+    #window = gtk.Window()
+    window = EntangledViewerWindow(node)
+    
     window.set_default_size(640, 640)
     window.set_title('Entangled Viewer - DHT on port %s' % sys.argv[1])
-    window.connect("delete-event", gtk.main_quit)
     
-    vbox = gtk.VBox(spacing=3)
-    window.add(vbox)
-    vbox.show()
     
-    widget = EntangledViewer(node)
-    widget.show()
     
-    vbox.pack_start(widget)
-    
-    hbox = gtk.HBox(False, 8)
-    hbox.show()
-    vbox.pack_start(hbox, expand=False, fill=False)
-    label = gtk.Label("Key:")
-    hbox.pack_start(label, False, False, 0)
-    label.show()
-    entryKey = gtk.Entry()
-    hbox.pack_start(entryKey, expand=True, fill=True)
-    entryKey.show()
-    label = gtk.Label("Value:")
-    hbox.pack_start(label, False, False, 0)
-    label.show()
-    entryValue = gtk.Entry()
-    hbox.pack_start(entryValue, expand=True, fill=True)
-    entryValue.show()
-    button = gtk.Button('Publish')
-    hbox.pack_start(button, expand=False, fill=False)
-    button.connect("clicked", widget.publishValue, entryKey.get_text, entryValue.get_text)
-    button.show()
-    
-    hbox = gtk.HBox(False, 8)
-    hbox.show()
-    vbox.pack_start(hbox, expand=False, fill=False)
-    label = gtk.Label("Key:")
-    hbox.pack_start(label, False, False, 0)
-    label.show()
-    entryKey = gtk.Entry()
-    hbox.pack_start(entryKey, expand=True, fill=True)
-    entryKey.show()
-    label = gtk.Label("Value:")
-    hbox.pack_start(label, False, False, 0)
-    label.show()
-    labelValue = gtk.Label('---unknown---')
-    hbox.pack_start(labelValue, expand=True, fill=True)
-    labelValue.show()
-    button = gtk.Button('Retrieve')
-    hbox.pack_start(button, expand=False, fill=False)
-    button.connect("clicked", widget.getValue, entryKey, labelValue.set_text)
-    button.show()
-    
-    # Non-Kademlia stuff
-    hbox = gtk.HBox(False, 8)
-    hbox.show()
-    vbox.pack_start(hbox, expand=False, fill=False)
-    label = gtk.Label("Key:")
-    hbox.pack_start(label, False, False, 0)
-    label.show()
-    entryKey = gtk.Entry()
-    hbox.pack_start(entryKey, expand=True, fill=True)
-    entryKey.show()
-    button = gtk.Button('Delete')
-    hbox.pack_start(button, expand=False, fill=False)
-    button.connect("clicked", widget.deleteValue, entryKey.get_text)
-    button.show()
-    
-    #window.add(widget)
     window.present()
     node.joinNetwork(int(sys.argv[1]), knownNodes)
+#    
+#    vbox = gtk.VBox(spacing=3)
+#    window.add(vbox)
+#    vbox.show()
+#    
+#    widget = EntangledViewer(node)
+#    widget.show()
+#    
+#    vbox.pack_start(widget)
+#    
+#    # Store
+#    hbox = gtk.HBox(False, 8)
+#    hbox.show()
+#    vbox.pack_start(hbox, expand=False, fill=False)
+#    label = gtk.Label("Key:")
+#    hbox.pack_start(label, False, False, 0)
+#    label.show()
+#    entryKey = gtk.Entry()
+#    hbox.pack_start(entryKey, expand=True, fill=True)
+#    entryKey.show()
+#    label = gtk.Label("Value:")
+#    hbox.pack_start(label, False, False, 0)
+#    label.show()
+#    entryValue = gtk.Entry()
+#    hbox.pack_start(entryValue, expand=True, fill=True)
+#    entryValue.show()
+#    button = gtk.Button('Store')
+#    hbox.pack_start(button, expand=False, fill=False)
+#    button.connect("clicked", widget.storeValue, entryKey.get_text, entryValue.get_text)
+#    button.show()
+#    
+#    # Find value
+#    hbox = gtk.HBox(False, 8)
+#    hbox.show()
+#    vbox.pack_start(hbox, expand=False, fill=False)
+#    label = gtk.Label("Key:")
+#    hbox.pack_start(label, False, False, 0)
+#    label.show()
+#    entryKey = gtk.Entry()
+#    hbox.pack_start(entryKey, expand=True, fill=True)
+#    entryKey.show()
+#    label = gtk.Label("Value:")
+#    hbox.pack_start(label, False, False, 0)
+#    label.show()
+#    labelValue = gtk.Label('---unknown---')
+#    hbox.pack_start(labelValue, expand=True, fill=True)
+#    labelValue.show()
+#    button = gtk.Button('Retrieve')
+#    hbox.pack_start(button, expand=False, fill=False)
+#    button.connect("clicked", widget.getValue, entryKey, labelValue.set_text)
+#    button.show()
+#    
+#    ################# Non-Kademlia stuff ####################
+#    # Delete
+#    hbox = gtk.HBox(False, 8)
+#    hbox.show()
+#    vbox.pack_start(hbox, expand=False, fill=False)
+#    label = gtk.Label("Key:")
+#    hbox.pack_start(label, False, False, 0)
+#    label.show()
+#    entryKey = gtk.Entry()
+#    hbox.pack_start(entryKey, expand=True, fill=True)
+#    entryKey.show()
+#    button = gtk.Button('Delete')
+#    hbox.pack_start(button, expand=False, fill=False)
+#    button.connect("clicked", widget.deleteValue, entryKey.get_text)
+#    button.show()
+#    
+#    # Publish (with indexing)
+#    hbox = gtk.HBox(False, 8)
+#    hbox.show()
+#    vbox.pack_start(hbox, expand=False, fill=False)
+#    label = gtk.Label("Full Name:")
+#    hbox.pack_start(label, False, False, 0)
+#    label.show()
+#    entryName = gtk.Entry()
+#    hbox.pack_start(entryName, expand=True, fill=True)
+#    entryName.show()
+#    label = gtk.Label("Value:")
+#    hbox.pack_start(label, False, False, 0)
+#    label.show()
+#    entryValue2 = gtk.Entry()
+#    hbox.pack_start(entryValue2, expand=True, fill=True)
+#    entryValue2.show()
+#    button = gtk.Button('Publish')
+#    hbox.pack_start(button, expand=False, fill=False)
+#    button.connect("clicked", widget.publishData, entryName.get_text, entryValue2.get_text)
+#    button.show()
+#    
+#    # Search for keyword
+#    hbox = gtk.HBox(False, 8)
+#    hbox.show()
+#    vbox.pack_start(hbox, expand=False, fill=False)
+#    label = gtk.Label("Keyword Search:")
+#    hbox.pack_start(label, False, False, 0)
+#    label.show()
+#    entryKeyword = gtk.Entry()
+#    hbox.pack_start(entryKeyword, expand=True, fill=True)
+#    entryKeyword.show()
+#    label = gtk.Label("Hits:")
+#    hbox.pack_start(label, False, False, 0)
+#    label.show()
+#    labelValue2 = gtk.Label('---unknown---')
+#    hbox.pack_start(labelValue2, expand=True, fill=True)
+#    labelValue2.show()
+#    button = gtk.Button('Retrieve')
+#    hbox.pack_start(button, expand=False, fill=False)
+#    button.connect("clicked", widget.searchForKeyword, entryKeyword, labelValue2.set_text)
+#    button.show()
+#    
+#    
+#    
+#    
+#    
+#    #window.add(widget)
+#    window.present()
+#    node.joinNetwork(int(sys.argv[1]), knownNodes)

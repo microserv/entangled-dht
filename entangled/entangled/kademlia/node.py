@@ -142,6 +142,8 @@ class Node(object):
     def iterativeFindNode(self, key):
         """ The basic Kademlia node lookup operation
         
+        Call this to find a remote node in the P2P overlay network.
+        
         @param key: the 160-bit key (i.e. the node or value ID) to search for
         @type key: str
         
@@ -154,7 +156,7 @@ class Node(object):
         return self._iterativeFind(key)
     
     def iterativeFindValue(self, key):
-        """ The Kademlia search operation
+        """ The Kademlia search operation (deterministic)
         
         Call this to retrieve data from the DHT.
         
@@ -414,7 +416,6 @@ class Node(object):
         
         def removeFromShortlist(failure):
             """ @type failure: twisted.python.failure.Failure """
-            print '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!== timeout ==='
             failure.trap(protocol.TimeoutError)
             deadContactID = failure.getErrorMessage()
             if deadContactID in shortlist:
@@ -427,12 +428,12 @@ class Node(object):
                 # Force the iteration
                 pendingIterationCalls[0].cancel()
                 del pendingIterationCalls[0]
-                print 'forcing iteration ================='
+                #print 'forcing iteration ================='
                 searchIteration()
  
         # Send parallel, asynchronous FIND_NODE RPCs to the shortlist of contacts
         def searchIteration():
-            print '==> searchiteration'
+            #print '==> searchiteration'
             slowNodeCount[0] = len(activeProbes)
             # Sort the discovered active nodes from closest to furthest
             activeContacts.sort(lambda firstContact, secondContact, targetKey=key: cmp(self._distance(firstContact.id, targetKey), self._distance(secondContact.id, targetKey)))      
