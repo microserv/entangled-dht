@@ -13,7 +13,7 @@ import math
 from twisted.internet.gtk2reactor import Gtk2Reactor
 import entangled.kademlia.protocol
 entangled.kademlia.protocol.reactor = Gtk2Reactor()
-import entangled.node
+import entangled.dtuple
 
 import entangled.kademlia.contact
 import entangled.kademlia.msgtypes
@@ -251,15 +251,24 @@ class EntangledViewerWindow(gtk.Window):
         notebook.set_tab_pos(pos=gtk.POS_TOP)
         notebook.show()
         vbox.pack_start(notebook,expand=False, fill=False)
-        #kademliaTab = gtk.NotebookTab()
-        #frame = gtk.Frame()
-        #frame.set_label('Store/retrieve (key, value) pairs in the DHT')
-        #frame.show()
-        #notebook.append_page(frame, gtk.Label('Basic Kademlia'))
+        
+        
+        #notebook.append_page(frame, gtk.Label('Low-level DHT controls'))
+        lowlevelVbox = gtk.VBox(spacing=3)
+        lowlevelVbox.show()
+        
+        
+        #frame.add(kademliaTabVbox)
+        notebook.append_page(lowlevelVbox, gtk.Label('Low-level DHT controls'))
+
+        frame = gtk.Frame()
+        frame.set_label('Basic Kademlia')
+        frame.show()
+        lowlevelVbox.pack_start(frame)
+
         kademliaTabVbox = gtk.VBox(spacing=3)
         kademliaTabVbox.show()
-        #frame.add(kademliaTabVbox)
-        notebook.append_page(kademliaTabVbox, gtk.Label('Basic Kademlia'))
+        frame.add(kademliaTabVbox)
 
         # Store
         hbox = gtk.HBox(False, 8)
@@ -303,15 +312,15 @@ class EntangledViewerWindow(gtk.Window):
         button.show()
         kademliaTabVbox.pack_start(hbox, expand=False, fill=False)
     
-        ################# Entangled-specific stuff ####################
+        ################# "Entangled DHT"-specific stuff ####################
         #frame = gtk.Frame()
         #frame.set_label('Store keyword-searchable data in the DHT')
         #frame.show()
         #notebook.append_page(frame, gtk.Label('Entangled Extensions'))
-        entangledTabVbox = gtk.VBox(spacing=3)
-        entangledTabVbox.show()
+        highlevelVbox = gtk.VBox(spacing=3)
+        highlevelVbox.show()
         #frame.add(entangledTabVbox)
-        notebook.append_page(entangledTabVbox, gtk.Label('Entangled Extensions'))
+        notebook.append_page(highlevelVbox, gtk.Label('High-level DHT controls'))
         
         # Publish (with indexing)
         hbox = gtk.HBox(False, 8)
@@ -332,7 +341,7 @@ class EntangledViewerWindow(gtk.Window):
         hbox.pack_start(button, expand=False, fill=False)
         button.connect("clicked", self.publishData, entryName.get_text, entryValue2.get_text)
         button.show()
-        entangledTabVbox.pack_start(hbox, expand=False, fill=False)
+        highlevelVbox.pack_start(hbox, expand=False, fill=False)
     
         # Search for keyword
         hbox = gtk.HBox(False, 8)
@@ -347,15 +356,41 @@ class EntangledViewerWindow(gtk.Window):
         hbox.pack_start(label, False, False, 0)
         label.show()
         labelValue2 = gtk.Label('---unknown---')
+        labelValue2.set_selectable(True)
         hbox.pack_start(labelValue2, expand=True, fill=True)
         labelValue2.show()
         button = gtk.Button('Search')
         hbox.pack_start(button, expand=False, fill=False)
-        button.connect("clicked", self.searchForKeyword, entryKeyword, labelValue2.set_text)
+        button.connect("clicked", self.searchForKeywords, entryKeyword, labelValue2.set_text)
         button.show()
-        entangledTabVbox.pack_start(hbox, expand=False, fill=False)
+        highlevelVbox.pack_start(hbox, expand=False, fill=False)
 
-        # Delete
+        # Remove data
+        hbox = gtk.HBox(False, 8)
+        hbox.show()
+        label = gtk.Label("Full Name:")
+        hbox.pack_start(label, False, False, 0)
+        label.show()
+        entryName = gtk.Entry()
+        hbox.pack_start(entryName, expand=True, fill=True)
+        entryName.show()
+        button = gtk.Button('Remove')
+        hbox.pack_start(button, expand=False, fill=False)
+        button.connect("clicked", self.removeData, entryName.get_text)
+        button.show()
+        highlevelVbox.pack_start(hbox, expand=False, fill=False)
+
+
+        frame = gtk.Frame()
+        frame.set_label('Entangled Extensions')
+        frame.show()
+        lowlevelVbox.pack_start(frame)
+
+        entangledTabVbox = gtk.VBox(spacing=3)
+        entangledTabVbox.show()
+        frame.add(entangledTabVbox)
+        
+        # Delete (direct Kademlia extension - shown on first page in GUI, along with Kademlia RPCs)
         hbox = gtk.HBox(False, 8)
         hbox.show()
         label = gtk.Label("Key:")
@@ -369,6 +404,78 @@ class EntangledViewerWindow(gtk.Window):
         button.connect("clicked", self.deleteValue, entryKey.get_text)
         button.show()
         entangledTabVbox.pack_start(hbox, expand=False, fill=False)
+        
+        ################# "Entangled Tuple Space"-specific stuff ####################
+        #frame = gtk.Frame()
+        #frame.set_label('Store keyword-searchable data in the DHT')
+        #frame.show()
+        #notebook.append_page(frame, gtk.Label('Entangled Extensions'))
+        tupleSpaceVbox = gtk.VBox(spacing=3)
+        tupleSpaceVbox.show()
+        #frame.add(entangledTabVbox)
+        notebook.append_page(tupleSpaceVbox, gtk.Label('Entangled Tuple Space'))
+        
+        # Put
+        hbox = gtk.HBox(False, 8)
+        hbox.show()
+        label = gtk.Label("Tuple:")
+        hbox.pack_start(label, False, False, 0)
+        label.show()
+        entryTuplePut = gtk.Entry()
+        hbox.pack_start(entryTuplePut, expand=True, fill=True)
+        entryTuplePut.show()
+        button = gtk.Button('Put')
+        hbox.pack_start(button, expand=False, fill=False)
+        button.connect("clicked", self.putTuple, entryTuplePut.get_text)
+        button.show()
+        tupleSpaceVbox.pack_start(hbox, expand=False, fill=False)
+    
+        # Get
+        hbox = gtk.HBox(False, 8)
+        hbox.show()
+        label = gtk.Label("Template:")
+        hbox.pack_start(label, False, False, 0)
+        label.show()
+        entryTemplate = gtk.Entry()
+        hbox.pack_start(entryTemplate, expand=True, fill=True)
+        entryTemplate.show()
+        label = gtk.Label("Consumed tuple:")
+        hbox.pack_start(label, False, False, 0)
+        label.show()
+        labelValueTuple = gtk.Label('---unknown---')
+        labelValueTuple.set_selectable(True)
+        hbox.pack_start(labelValueTuple, expand=True, fill=True)
+        labelValueTuple.show()
+        button = gtk.Button('Get')
+        hbox.pack_start(button, expand=False, fill=False)
+        button.connect("clicked", self.getTuple, entryTemplate, labelValueTuple.set_text)
+        button.show()
+        tupleSpaceVbox.pack_start(hbox, expand=False, fill=False)
+        
+        # Read
+        hbox = gtk.HBox(False, 8)
+        hbox.show()
+        label = gtk.Label("Template:")
+        hbox.pack_start(label, False, False, 0)
+        label.show()
+        entryTemplate2 = gtk.Entry()
+        hbox.pack_start(entryTemplate2, expand=True, fill=True)
+        entryTemplate2.show()
+        label = gtk.Label("Read tuple:")
+        hbox.pack_start(label, False, False, 0)
+        label.show()
+        labelValueTuple2 = gtk.Label('---unknown---')
+        labelValueTuple2.set_selectable(True)
+        hbox.pack_start(labelValueTuple2, expand=True, fill=True)
+        labelValueTuple2.show()
+        button = gtk.Button('Read')
+        hbox.pack_start(button, expand=False, fill=False)
+        button.connect("clicked", self.readTuple, entryTemplate2, labelValueTuple2.set_text)
+        button.show()
+        tupleSpaceVbox.pack_start(hbox, expand=False, fill=False)
+        
+        
+        
 
     def publishData(self, sender, nameFunc, valueFunc):
         name = nameFunc()
@@ -404,6 +511,7 @@ class EntangledViewerWindow(gtk.Window):
                 value = '---not found---'
             showFunc(value)
         def error(failure):
+            print 'GUI: an error occurred:', failure.getErrorMessage()
             sender.set_sensitive(True)
             entryKey.set_sensitive(True)
         
@@ -420,22 +528,96 @@ class EntangledViewerWindow(gtk.Window):
         
         self.node.iterativeDelete(hKey)
         
-    def searchForKeyword(self, sender, entryKeyword, showFunc):
+    def searchForKeywords(self, sender, entryKeyword, showFunc):
         sender.set_sensitive(False)
         keyword = entryKeyword.get_text()
         entryKeyword.set_sensitive(False)
-        print '=======gui searchForKeyword called'
         
         def showValue(result):
-            print '/////////////////////////// GUI SHOW VALUE CALLED'
             sender.set_sensitive(True)
             entryKeyword.set_sensitive(True)
             showFunc(result)
         def error(failure):
+            print 'GUI: an error occurred:', failure.getErrorMessage()
             sender.set_sensitive(True)
-            entryKey.set_sensitive(True)
+            entryKeyword.set_sensitive(True)
         
-        df = self.node.searchForKeyword(keyword)
+        df = self.node.searchForKeywords(keyword)
+        df.addCallback(showValue)
+        df.addErrback(error)
+        
+    def removeData(self, sender, nameFunc):
+        name = nameFunc()
+        self.node.removeData(name)
+
+    ###### Tuple Space Controls ######
+    def putTuple(self, sender, tupleFunc):
+        dTuple = self._tupleFromStr(tupleFunc())
+        if dTuple == None:
+            return
+        self.node.put(dTuple)
+        
+    def _tupleFromStr(self, text):
+        tp = None
+        try:
+            exec 'tp = %s' % text
+            if type(tp) != tuple:
+                raise Exception
+        except Exception:
+            dialog = gtk.MessageDialog(self, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
+                                       gtk.MESSAGE_ERROR, gtk.BUTTONS_OK,
+                                        "Please enter a valid Python tuple,\ne.g. (1, 'abc', 3.14)")
+            dialog.set_title('Error')
+            dialog.run()
+            dialog.destroy()
+        finally:
+            return tp
+        
+    def getTuple(self, sender, entryTemplate, showFunc):
+        template = self._tupleFromStr(entryTemplate.get_text())
+        if template == None:
+            return
+        sender.set_sensitive(False)
+        entryTemplate.set_sensitive(False)
+        
+        def showValue(result):
+            sender.set_sensitive(True)
+            entryTemplate.set_sensitive(True)
+            if result == None:
+                result = '---no matching tuple found---'
+            else:
+                result = str(result)
+            showFunc(result)
+        def error(failure):
+            print 'GUI: an error occurred:', failure.getErrorMessage()
+            sender.set_sensitive(True)
+            entryTemplate.set_sensitive(True)
+        
+        df = self.node.get(template)
+        df.addCallback(showValue)
+        df.addErrback(error)
+        
+    def readTuple(self, sender, entryTemplate, showFunc):
+        template = self._tupleFromStr(entryTemplate.get_text())
+        if template == None:
+            return
+        sender.set_sensitive(False)
+        entryTemplate.set_sensitive(False)
+        
+        def showValue(result):
+            sender.set_sensitive(True)
+            entryTemplate.set_sensitive(True)
+            if result == None:
+                result = '---no matching tuple found---'
+            else:
+                result = str(result)
+            showFunc(result)
+        def error(failure):
+            print 'GUI: an error occurred:', failure.getErrorMessage()
+            sender.set_sensitive(True)
+            entryTemplate.set_sensitive(True)
+        
+        df = self.node.read(template)
         df.addCallback(showValue)
         df.addErrback(error)
 
@@ -444,135 +626,16 @@ if __name__ == "__main__":
     if len(sys.argv) < 2:
         print 'Usage:\n%s UDP_PORT KNOWN_NODE_IP KNOWN_NODE_PORT' % sys.argv[0]
         sys.exit(1)
-    node = entangled.node.Node()
+    node = entangled.dtuple.DistributedTupleSpacePeer()
     if len(sys.argv) == 4:
         knownNodes = [(sys.argv[2], int(sys.argv[3]))]
     else:
         knownNodes = None
-    #window = gtk.Window()
+
     window = EntangledViewerWindow(node)
-    
+
     window.set_default_size(640, 640)
     window.set_title('Entangled Viewer - DHT on port %s' % sys.argv[1])
-    
-    
-    
+
     window.present()
     node.joinNetwork(int(sys.argv[1]), knownNodes)
-#    
-#    vbox = gtk.VBox(spacing=3)
-#    window.add(vbox)
-#    vbox.show()
-#    
-#    widget = EntangledViewer(node)
-#    widget.show()
-#    
-#    vbox.pack_start(widget)
-#    
-#    # Store
-#    hbox = gtk.HBox(False, 8)
-#    hbox.show()
-#    vbox.pack_start(hbox, expand=False, fill=False)
-#    label = gtk.Label("Key:")
-#    hbox.pack_start(label, False, False, 0)
-#    label.show()
-#    entryKey = gtk.Entry()
-#    hbox.pack_start(entryKey, expand=True, fill=True)
-#    entryKey.show()
-#    label = gtk.Label("Value:")
-#    hbox.pack_start(label, False, False, 0)
-#    label.show()
-#    entryValue = gtk.Entry()
-#    hbox.pack_start(entryValue, expand=True, fill=True)
-#    entryValue.show()
-#    button = gtk.Button('Store')
-#    hbox.pack_start(button, expand=False, fill=False)
-#    button.connect("clicked", widget.storeValue, entryKey.get_text, entryValue.get_text)
-#    button.show()
-#    
-#    # Find value
-#    hbox = gtk.HBox(False, 8)
-#    hbox.show()
-#    vbox.pack_start(hbox, expand=False, fill=False)
-#    label = gtk.Label("Key:")
-#    hbox.pack_start(label, False, False, 0)
-#    label.show()
-#    entryKey = gtk.Entry()
-#    hbox.pack_start(entryKey, expand=True, fill=True)
-#    entryKey.show()
-#    label = gtk.Label("Value:")
-#    hbox.pack_start(label, False, False, 0)
-#    label.show()
-#    labelValue = gtk.Label('---unknown---')
-#    hbox.pack_start(labelValue, expand=True, fill=True)
-#    labelValue.show()
-#    button = gtk.Button('Retrieve')
-#    hbox.pack_start(button, expand=False, fill=False)
-#    button.connect("clicked", widget.getValue, entryKey, labelValue.set_text)
-#    button.show()
-#    
-#    ################# Non-Kademlia stuff ####################
-#    # Delete
-#    hbox = gtk.HBox(False, 8)
-#    hbox.show()
-#    vbox.pack_start(hbox, expand=False, fill=False)
-#    label = gtk.Label("Key:")
-#    hbox.pack_start(label, False, False, 0)
-#    label.show()
-#    entryKey = gtk.Entry()
-#    hbox.pack_start(entryKey, expand=True, fill=True)
-#    entryKey.show()
-#    button = gtk.Button('Delete')
-#    hbox.pack_start(button, expand=False, fill=False)
-#    button.connect("clicked", widget.deleteValue, entryKey.get_text)
-#    button.show()
-#    
-#    # Publish (with indexing)
-#    hbox = gtk.HBox(False, 8)
-#    hbox.show()
-#    vbox.pack_start(hbox, expand=False, fill=False)
-#    label = gtk.Label("Full Name:")
-#    hbox.pack_start(label, False, False, 0)
-#    label.show()
-#    entryName = gtk.Entry()
-#    hbox.pack_start(entryName, expand=True, fill=True)
-#    entryName.show()
-#    label = gtk.Label("Value:")
-#    hbox.pack_start(label, False, False, 0)
-#    label.show()
-#    entryValue2 = gtk.Entry()
-#    hbox.pack_start(entryValue2, expand=True, fill=True)
-#    entryValue2.show()
-#    button = gtk.Button('Publish')
-#    hbox.pack_start(button, expand=False, fill=False)
-#    button.connect("clicked", widget.publishData, entryName.get_text, entryValue2.get_text)
-#    button.show()
-#    
-#    # Search for keyword
-#    hbox = gtk.HBox(False, 8)
-#    hbox.show()
-#    vbox.pack_start(hbox, expand=False, fill=False)
-#    label = gtk.Label("Keyword Search:")
-#    hbox.pack_start(label, False, False, 0)
-#    label.show()
-#    entryKeyword = gtk.Entry()
-#    hbox.pack_start(entryKeyword, expand=True, fill=True)
-#    entryKeyword.show()
-#    label = gtk.Label("Hits:")
-#    hbox.pack_start(label, False, False, 0)
-#    label.show()
-#    labelValue2 = gtk.Label('---unknown---')
-#    hbox.pack_start(labelValue2, expand=True, fill=True)
-#    labelValue2.show()
-#    button = gtk.Button('Retrieve')
-#    hbox.pack_start(button, expand=False, fill=False)
-#    button.connect("clicked", widget.searchForKeyword, entryKeyword, labelValue2.set_text)
-#    button.show()
-#    
-#    
-#    
-#    
-#    
-#    #window.add(widget)
-#    window.present()
-#    node.joinNetwork(int(sys.argv[1]), knownNodes)

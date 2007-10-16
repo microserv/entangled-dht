@@ -15,38 +15,47 @@ import kademlia.node
 from kademlia.node import rpcmethod
 
 
-class Node(kademlia.node.Node):
+class EntangledNode(kademlia.node.Node):
     """ Entangled DHT node
     
     This is basically a Kademlia node, but with a few more (non-standard, but
     useful) RPCs defined.
     """
   
-    def searchForKeyword(self, keyword):
+    def searchForKeywords(self, keywords):
         """ The Entangled search operation (keyword-based)
         
         Call this to find keys in the DHT which contain the specified
         keyword(s).
         """
-        keyword = keyword.lower()
+        if type(keywords) == str:
+            keywords = keywords.lower().split()
+        
+        keyword = keywords[0]
         h = hashlib.sha1()
         h.update(keyword)
         key = h.digest()
         
         def checkResult(result):
             if type(result) == dict:
-                # Value was found; this should be list of (real name, key) pairs
+                # Value was found; this should be list of "real names" (not keys, in this implementation)
                 index = result[key]
+                filteredResults = index
+                # We found values containing our first keyword; Now filter for the rest
+                for name in index:
+                    for kw in keywords[1:]:
+                        if name.find(kw) == -1:
+                            filteredResults.remove(name)
+                            break
                 sourceListString = ''
-                for name, hash in index:
-                    print '  .....in for'
+                for name in filteredResults:
                     sourceListString += '%s\n' % name
                 result = sourceListString[:-1]
             else:
                 # Value wasn't found
                 result = ''
             return result
-        
+ 
         df = self.iterativeFindValue(key)
         df.addCallback(checkResult)
         return df
@@ -67,25 +76,57 @@ class Node(kademlia.node.Node):
         h.update(name)
         mainKey = h.digest()
 
+        # Store the main key, with its value...
+        self.iterativeStore(mainKey, data)
+
+        # Create hashes for the keywords in the name
+        keywordKeys = self._keywordHashesFromString(name)
+        
+        # Update the appropriate inverted indexes
+        df = self._addToInvertedIndexes(keywordKeys, name)
+        return df
+#        
+#        
+#        kwIndex = [-1] # using a list for this counter because Python doesn't allow binding a new value to a name in an enclosing (non-global) scope
+#
+#        
+#        # ...and now update the inverted indexes (or add them, if they don't exist yet)
+#        def addToInvertedIndex(results):
+#            kwKey = keywordKeys[kwIndex[0]]
+#            if type(results) == dict:
+#                # An index already exists; add our value to it
+#                index = results[kwKey]
+#                #TODO: this might not actually be an index, but a value... do some name-mangling to avoid this
+#                index.append(name)
+#            else:
+#                # An index does not yet exist for this keyword; create one
+#                index = [name]
+#            df = self.iterativeStore(kwKey, index)
+#            df.addCallback(storeNextKeyword)
+#        
+#        def storeNextKeyword(results=None):
+#            kwIndex[0] += 1
+#            if kwIndex[0] < len(keywordKeys):
+#                kwKey = keywordKeys[kwIndex[0]]
+#                #TODO: kademlia is going to replicate the un-updated inverted index; stop that from happening!!
+#                df = self.iterativeFindValue(kwKey)
+#                df.addCallback(addToInvertedIndex)
+#            else:
+#                # We're done. Let the caller of the parent method know
+#                outerDf.callback(None)
+#             
+#        if len(keywordKeys) > 0:
+#            # Start the "keyword store"-cycle
+#            storeNextKeyword()
+#            
+#        return outerDf
+    
+    def _addToInvertedIndexes(self, keywordKeys, indexLink):
         # Prepare a deferred result for this operation
         outerDf = defer.Deferred()
 
-        # Create hashes for the keywords in the name
-        keywordKeys = []
-        splitName = name.lower()
-        for splitter in ('_', '.', '/'):
-            splitName = splitName.replace(splitter, ' ')
         kwIndex = [-1] # using a list for this counter because Python doesn't allow binding a new value to a name in an enclosing (non-global) scope
-        for keyword in splitName.split():
-            # Only consider keywords with 3 or more letters
-            if len(keyword) >= 3:
-                h = hashlib.sha1()
-                h.update(keyword)
-                key = h.digest()
-                keywordKeys.append(key)
 
-        # Store the main key, with its value...
-        self.iterativeStore(mainKey, data)
         # ...and now update the inverted indexes (or add them, if they don't exist yet)
         def addToInvertedIndex(results):
             kwKey = keywordKeys[kwIndex[0]]
@@ -93,10 +134,10 @@ class Node(kademlia.node.Node):
                 # An index already exists; add our value to it
                 index = results[kwKey]
                 #TODO: this might not actually be an index, but a value... do some name-mangling to avoid this
-                index.append( (name, mainKey) )
+                index.append(indexLink)
             else:
                 # An index does not yet exist for this keyword; create one
-                index = [ (name, mainKey) ]
+                index = [indexLink]
             df = self.iterativeStore(kwKey, index)
             df.addCallback(storeNextKeyword)
         
@@ -117,6 +158,113 @@ class Node(kademlia.node.Node):
             
         return outerDf
     
+    def removeData(self, name):
+        """ The Entangled high-level data removal (delete) operation
+        
+        Call this to remove data from the Entangled DHT.
+        
+        @note: This will automatically create a hash of the specified C{name}
+        parameter. It will also remove the published data from the appropriate
+        inverted indexes, so as to maintain reliability of keyword-based
+        searching. If this behaviour is not wanted/needed, rather call this
+        node's C{iterativeDelete()} method directly.
+        """
+        h = hashlib.sha1()
+        h.update(name)
+        mainKey = h.digest()
+        
+        # Remove the main key
+        self.iterativeDelete(mainKey)
+
+        # Create hashes for the keywords in the name
+        keywordKeys = self._keywordHashesFromString(name)
+        
+        # Update the appropriate inverted indexes
+        df = self._removeFromInvertedIndexes(keywordKeys, name)
+        return df
+        
+#        kwIndex = [-1] # using a list for this counter because Python doesn't allow binding a new value to a name in an enclosing (non-global) scope
+#
+#        # Remove the main key
+#        self.iterativeDelete(mainKey)
+#        # ...and now update the inverted indexes (or add them, if they don't exist yet)
+#        def removeFromInvertedIndex(results):
+#            kwKey = keywordKeys[kwIndex[0]]
+#            if type(results) == dict:
+#                # An index for this keyword exists; remove our value from it
+#                index = results[kwKey]
+#                #TODO: this might not actually be an index, but a value... do some name-mangling to avoid this
+#                index.remove(name)
+#                # Remove the index completely if it is empty, otherwise put it back
+#                if len(index) > 0:
+#                    df = self.iterativeStore(kwKey, index)
+#                else:
+#                    df = self.iterativeDelete(kwKey)
+#                df.addCallback(findNextKeyword)
+#            else:
+#                # No index exists for this keyword; skip it
+#                findNextKeyword()
+#
+#        def findNextKeyword(results=None):
+#            kwIndex[0] += 1
+#            if kwIndex[0] < len(keywordKeys):
+#                kwKey = keywordKeys[kwIndex[0]]
+#                #TODO: kademlia is going to replicate the un-updated inverted index; stop that from happening!!
+#                df = self.iterativeFindValue(kwKey)
+#                df.addCallback(removeFromInvertedIndex)
+#            else:
+#                # We're done. Let the caller of the parent method know
+#                outerDf.callback(None)
+#             
+#        if len(keywordKeys) > 0:
+#            # Start the "keyword store"-cycle
+#            findNextKeyword()
+#            
+#        return outerDf
+
+
+    def _removeFromInvertedIndexes(self, keywordKeys, indexLink):
+        # Prepare a deferred result for this operation
+        outerDf = defer.Deferred()
+    
+        kwIndex = [-1] # using a list for this counter because Python doesn't allow binding a new value to a name in an enclosing (non-global) scope
+
+        # ...and now update the inverted indexes (or ignore them, if they don't exist yet)
+        def removeFromInvertedIndex(results):
+            kwKey = keywordKeys[kwIndex[0]]
+            if type(results) == dict:
+                # An index for this keyword exists; remove our value from it
+                index = results[kwKey]
+                #TODO: this might not actually be an index, but a value... do some name-mangling to avoid this
+                #TODO: this might throw a ValueError; handle it
+                index.remove(indexLink)
+                # Remove the index completely if it is empty, otherwise put it back
+                if len(index) > 0:
+                    df = self.iterativeStore(kwKey, index)
+                else:
+                    df = self.iterativeDelete(kwKey)
+                df.addCallback(findNextKeyword)
+            else:
+                # No index exists for this keyword; skip it
+                findNextKeyword()
+
+        def findNextKeyword(results=None):
+            kwIndex[0] += 1
+            if kwIndex[0] < len(keywordKeys):
+                kwKey = keywordKeys[kwIndex[0]]
+                #TODO: kademlia is going to replicate the un-updated inverted index; stop that from happening!!
+                df = self.iterativeFindValue(kwKey)
+                df.addCallback(removeFromInvertedIndex)
+            else:
+                # We're done. Let the caller of the parent method know
+                outerDf.callback(None)
+             
+        if len(keywordKeys) > 0:
+            # Start the "keyword store"-cycle
+            findNextKeyword()
+            
+        return outerDf
+
     def iterativeDelete(self, key):
         """ The Entangled delete operation
         
@@ -157,13 +305,27 @@ class Node(kademlia.node.Node):
         # ...and make this RPC propagate through the network (like a FIND_VALUE for a non-existant value)
         return self.findNode(key, **kwargs)
 
+    def _keywordHashesFromString(self, text):
+        """ Create hash keys for the keywords contained in the specified text string """
+        keywordKeys = []
+        splitText = text.lower()
+        for splitter in ('_', '.', '/'):
+            splitText = splitText.replace(splitter, ' ')
+        for keyword in splitText.split():
+            # Only consider keywords with 3 or more letters
+            if len(keyword) >= 3 and keyword != text:
+                h = hashlib.sha1()
+                h.update(keyword)
+                key = h.digest()
+                keywordKeys.append(key)
+        return keywordKeys
 
 import sys
 if __name__ == '__main__':
     if len(sys.argv) < 2:
         print 'Usage:\n%s UDP_PORT KNOWN_NODE_IP  KNOWN_NODE_PORT' % sys.argv[0]
         sys.exit(1)
-    node = Node()
+    node = EntangledNode()
     if len(sys.argv) == 4:
         knownNodes = [(sys.argv[2], int(sys.argv[3]))]
     else:
