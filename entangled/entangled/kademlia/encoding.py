@@ -36,7 +36,13 @@ class Encoding(object):
         """
 
 class Bencode(Encoding):
-    """ Implementation of the Bencode algorithm used by Bittorrent """
+    """ Implementation of a Bencode-based algorithm (Bencode is the encoding
+    algorithm used by Bittorrent).
+    
+    @note: This algorithm differs from the "official" Bencode algorithm in
+           that it can encode/decode floating point values in addition to
+           integers.
+    """
     
     def encode(self, data):
         """ Encoder implementation of the Bencode algorithm
@@ -64,6 +70,9 @@ class Bencode(Encoding):
                 encodedDictItems += self.encode(key)
                 encodedDictItems += self.encode(data[key])
             return 'd%se' % encodedDictItems
+        elif type(data == float):
+            # This (float data type) is a non-standard extension to the original Bencode algorithm 
+            return 'f%fe' % data
         else:
             raise TypeError, "Cannot bencode '%s' object" % type(data)
     
@@ -92,12 +101,9 @@ class Bencode(Encoding):
             return (int(data[startIndex+1:endPos]), endPos+1)
         elif data[startIndex] == 'l':
             startIndex += 1
-            debugData = data[startIndex:]
             decodedList = []
             while data[startIndex] != 'e':
-                debugData = data[startIndex:]
                 listData, startIndex = Bencode._decodeRecursive(data, startIndex)
-                debugData = data[startIndex:]
                 decodedList.append(listData)
             return (decodedList, startIndex+1)
         elif data[startIndex] == 'd':
@@ -108,6 +114,10 @@ class Bencode(Encoding):
                 value, startIndex = Bencode._decodeRecursive(data, startIndex)
                 decodedDict[key] = value
             return (decodedDict, startIndex)
+        elif data[startIndex] == 'f':
+            # This (float data type) is a non-standard extension to the original Bencode algorithm
+            endPos = data[startIndex:].find('e')+startIndex
+            return (float(data[startIndex+1:endPos]), endPos+1)
         else:
             splitPos = data[startIndex:].find(':')+startIndex
             length = int(data[startIndex:splitPos])
