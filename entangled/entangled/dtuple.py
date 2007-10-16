@@ -154,18 +154,20 @@ class DistributedTupleSpacePeer(EntangledNode):
         
         for element in template:
             # See the description in put() for how these "keyword" subtuples are constructed
-            if type(element) == type:
-                # This element in the template only describes the elment's data type (not value)
-                typeSubtuple = (tupleLength, i, type(element))
+#            if type(element) == type:
+#                # This element in the template only describes the elment's data type (not value)
+#                typeSubtuple = (tupleLength, i, type(element))
+#                h = hashlib.sha1()
+#                h.update(cPickle.dumps(typeSubtuple))
+#                subtupleKeys.append(h.digest())
+            #el
+            if element != None:
+                # This element in the template describes the element's value or type
+                if type(element) != type:
+                    deterministicElementCount += 1
+                subtuple = (tupleLength, i, element)
                 h = hashlib.sha1()
-                h.update(cPickle.dumps(typeSubtuple))
-                subtupleKeys.append(h.digest())
-            elif element != None:
-                # This element in the template describes the element's value
-                deterministicElementCount += 1
-                valueSubtuple = (tupleLength, i, element)
-                h = hashlib.sha1()
-                h.update(cPickle.dumps(valueSubtuple))
+                h.update(cPickle.dumps(subtuple))
                 subtupleKeys.append(h.digest())
             else:
                 # The element is None; treat it as a wildcard
@@ -186,11 +188,10 @@ class DistributedTupleSpacePeer(EntangledNode):
                     # Filter the our list of possible matching tuples with the new results
                     delKeys = []
                     for tupleKey in filteredResults:
-                        if index.index(tupleKey) == -1:
+                        if tupleKey not in index:
                             delKeys.append(tupleKey)
                     for tupleKey in delKeys:
                         filteredResults.remove(tupleKey)
-                
                 if len(filteredResults) == 0:
                     # No matches for this template exist at this point; there is no use in searching further
                     outerDf.callback(None)
