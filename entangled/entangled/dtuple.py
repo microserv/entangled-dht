@@ -21,6 +21,7 @@ class DistributedTupleSpacePeer(EntangledNode):
     def __init__(self, dataStore=None, routingTable=None, networkProtocol=None):
         EntangledNode.__init__(self, dataStore, routingTable, networkProtocol)
         self._blockingGetRequests = {}
+        self._blockingReadRequests = {}
 
     def put(self, dTuple):
         """ Produces a tuple, and writes it into tuple space
@@ -41,10 +42,26 @@ class DistributedTupleSpacePeer(EntangledNode):
         listenerNodeID = []
         listenerKey = []
         
+        def publishToTupleSpace(result):
+            print 'publishToTupleSpace called, result:', result
+            if result != 'get':
+                # Extract "keywords" from the tuple
+                subtupleKeys = self._keywordHashesFromTuple(dTuple)
+                # Write the tuple to the DHT Tuple Space...
+                h = hashlib.sha1()
+                tupleValue = cPickle.dumps(dTuple)
+                h.update('tuple:' + tupleValue)
+                mainKey = h.digest()
+                self.iterativeStore(mainKey, tupleValue)
+                # ...and now make it searchable, by writing the subtuples
+                df = self._addToInvertedIndexes(subtupleKeys, mainKey)
+                return df
+        
         def sendTupleToNode(nodes):
             if listenerNodeID[0] in nodes:
                 contact = nodes[nodes.index(listenerNodeID[0])]
-                contact.receiveTuple(listenerKey[0], cPickle.dumps(dTuple))
+                df = contact.receiveTuple(listenerKey[0], cPickle.dumps(dTuple))
+                return df
         
         def checkIfListenerExists(result):
             if result != None:
@@ -64,9 +81,11 @@ class DistributedTupleSpacePeer(EntangledNode):
                 except ValueError:
                     df = self.iterativeFindNode(listenerNodeID[0])
                     df.addCallback(sendTupleToNode)
+                    df.addCallback(publishToTupleSpace)
                 else:
                     #TODO: add a callback to this to determine if it was a read/get
                     df = contact.receiveTuple(listenerKey[0], cPickle.dumps(dTuple))
+                    df.addCallback(publishToTupleSpace)
             else:
                 # Extract "keywords" from the tuple
                 subtupleKeys = self._keywordHashesFromTuple(dTuple)
@@ -224,6 +243,40 @@ class DistributedTupleSpacePeer(EntangledNode):
         return outerDf
     
     def read(self, template):
+        """ Non-destructively reads a tuple in the tuple space.
+        
+        This operation is similar to "get" (or "in") in that the peer builds a
+        template and waits for a matching tuple in the tuple space. Upon
+        finding a matching tuple, however, it copies it, leaving the original
+        tuple in the tuple space.
+        
+        @note: This method is named "rd" in some other implementations.
+        """
+        outerDf = defer.Deferred()
+        def addListener(result):
+            if result == None:
+                # The tuple does not exist (yet) - add a listener for it
+                h = hashlib.sha1()
+                listenerKey = 'listener:' + cPickle.dumps(template)
+                h.update(listenerKey)
+                listenerKey = h.digest()
+                # Extract "listener keywords" from the template
+                subtupleKeys = self._keywordHashesFromTemplate(template, True)
+                # ...now write the listener tuple(s) to the DHT Tuple Space
+                if subtupleKeys == None:
+                    # Deterministic template; all values are fully specified   
+                    self.iterativeStore(listenerKey, self.id + listenerKey)
+                else:
+                    self._addToInvertedIndexes(subtupleKeys, self.id + listenerKey)
+                self._blockingReadRequests[listenerKey] = outerDf
+            else:
+                outerDf.callback(result)
+        
+        df = self.readIfExists(template)
+        df.addCallback(addListener)
+        return outerDf
+    
+    def readIfExists(self, template):
         """ Non-destructively reads a tuple in the tuple space.
         
         This operation is similar to "get" (or "in") in that the peer builds a
@@ -455,5 +508,11 @@ class DistributedTupleSpacePeer(EntangledNode):
             dTuple = cPickle.loads(pickledTuple)
             df = self._blockingGetRequests[listenerKey]
             df.callback(dTuple)
-        return 'get'
+            return 'get'
+        elif listenerKey in self._blockingReadRequests:
+            dTuple = cPickle.loads(pickledTuple)
+            df = self._blockingReadRequests[listenerKey]
+            df.callback(dTuple)
+            return 'read'
+        
         

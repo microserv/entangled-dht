@@ -448,7 +448,11 @@ class EntangledViewerWindow(gtk.Window):
         labelValueTuple.show()
         button = gtk.Button('Get')
         hbox.pack_start(button, expand=False, fill=False)
-        button.connect("clicked", self.getTuple, entryTemplate, labelValueTuple.set_text)
+        button.connect("clicked", self.getTuple, entryTemplate, labelValueTuple.set_text, True)
+        button.show()
+        button = gtk.Button('Get (non-blocking)')
+        hbox.pack_start(button, expand=False, fill=False)
+        button.connect("clicked", self.getTuple, entryTemplate, labelValueTuple.set_text, False)
         button.show()
         tupleSpaceVbox.pack_start(hbox, expand=False, fill=False)
         
@@ -470,7 +474,11 @@ class EntangledViewerWindow(gtk.Window):
         labelValueTuple2.show()
         button = gtk.Button('Read')
         hbox.pack_start(button, expand=False, fill=False)
-        button.connect("clicked", self.readTuple, entryTemplate2, labelValueTuple2.set_text)
+        button.connect("clicked", self.readTuple, entryTemplate2, labelValueTuple2.set_text, True)
+        button.show()
+        button = gtk.Button('Read (non-blocking)')
+        hbox.pack_start(button, expand=False, fill=False)
+        button.connect("clicked", self.readTuple, entryTemplate2, labelValueTuple2.set_text, False)
         button.show()
         tupleSpaceVbox.pack_start(hbox, expand=False, fill=False)
         
@@ -573,7 +581,7 @@ class EntangledViewerWindow(gtk.Window):
         finally:
             return tp
         
-    def getTuple(self, sender, entryTemplate, showFunc):
+    def getTuple(self, sender, entryTemplate, showFunc, blocking):
         template = self._tupleFromStr(entryTemplate.get_text())
         if template == None:
             return
@@ -593,11 +601,14 @@ class EntangledViewerWindow(gtk.Window):
             sender.set_sensitive(True)
             entryTemplate.set_sensitive(True)
         
-        df = self.node.get(template)
+        if blocking == True:
+            df = self.node.get(template)
+        else:
+            df = self.node.getIfExists(template)
         df.addCallback(showValue)
         df.addErrback(error)
         
-    def readTuple(self, sender, entryTemplate, showFunc):
+    def readTuple(self, sender, entryTemplate, showFunc, blocking):
         template = self._tupleFromStr(entryTemplate.get_text())
         if template == None:
             return
@@ -617,7 +628,10 @@ class EntangledViewerWindow(gtk.Window):
             sender.set_sensitive(True)
             entryTemplate.set_sensitive(True)
         
-        df = self.node.read(template)
+        if blocking == True:
+            df = self.node.read(template)
+        else:
+            df = self.node.readIfExists(template)
         df.addCallback(showValue)
         df.addErrback(error)
 
