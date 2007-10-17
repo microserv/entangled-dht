@@ -217,8 +217,8 @@ class DistributedTupleSpacePeer(EntangledNode):
                 outerDf.callback(None)
             else:
                 mainTupleKey.append(tupleKey)
-                #TODO: kademlia is going to replicate the un-updated inverted index; stop that from happening!!
-                _df = self.iterativeFindValue(tupleKey)
+                # We use the find algorithm directly so that kademlia does not replicate the key
+                _df = self._iterativeFind(tupleKey, rpc='findValue')
                 _df.addCallback(returnTuple)
           
         def returnTuple(value):
