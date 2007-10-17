@@ -85,41 +85,6 @@ class EntangledNode(kademlia.node.Node):
         # Update the appropriate inverted indexes
         df = self._addToInvertedIndexes(keywordKeys, name)
         return df
-#        
-#        
-#        kwIndex = [-1] # using a list for this counter because Python doesn't allow binding a new value to a name in an enclosing (non-global) scope
-#
-#        
-#        # ...and now update the inverted indexes (or add them, if they don't exist yet)
-#        def addToInvertedIndex(results):
-#            kwKey = keywordKeys[kwIndex[0]]
-#            if type(results) == dict:
-#                # An index already exists; add our value to it
-#                index = results[kwKey]
-#                #TODO: this might not actually be an index, but a value... do some name-mangling to avoid this
-#                index.append(name)
-#            else:
-#                # An index does not yet exist for this keyword; create one
-#                index = [name]
-#            df = self.iterativeStore(kwKey, index)
-#            df.addCallback(storeNextKeyword)
-#        
-#        def storeNextKeyword(results=None):
-#            kwIndex[0] += 1
-#            if kwIndex[0] < len(keywordKeys):
-#                kwKey = keywordKeys[kwIndex[0]]
-#                #TODO: kademlia is going to replicate the un-updated inverted index; stop that from happening!!
-#                df = self.iterativeFindValue(kwKey)
-#                df.addCallback(addToInvertedIndex)
-#            else:
-#                # We're done. Let the caller of the parent method know
-#                outerDf.callback(None)
-#             
-#        if len(keywordKeys) > 0:
-#            # Start the "keyword store"-cycle
-#            storeNextKeyword()
-#            
-#        return outerDf
     
     def _addToInvertedIndexes(self, keywordKeys, indexLink):
         # Prepare a deferred result for this operation
@@ -145,8 +110,8 @@ class EntangledNode(kademlia.node.Node):
             kwIndex[0] += 1
             if kwIndex[0] < len(keywordKeys):
                 kwKey = keywordKeys[kwIndex[0]]
-                #TODO: kademlia is going to replicate the un-updated inverted index; stop that from happening!!
-                df = self.iterativeFindValue(kwKey)
+                # We use the find algorithm directly so that kademlia does not replicate the un-updated inverted index
+                df = self._iterativeFind(kwKey, rpc='findValue')
                 df.addCallback(addToInvertedIndex)
             else:
                 # We're done. Let the caller of the parent method know
@@ -182,46 +147,6 @@ class EntangledNode(kademlia.node.Node):
         # Update the appropriate inverted indexes
         df = self._removeFromInvertedIndexes(keywordKeys, name)
         return df
-        
-#        kwIndex = [-1] # using a list for this counter because Python doesn't allow binding a new value to a name in an enclosing (non-global) scope
-#
-#        # Remove the main key
-#        self.iterativeDelete(mainKey)
-#        # ...and now update the inverted indexes (or add them, if they don't exist yet)
-#        def removeFromInvertedIndex(results):
-#            kwKey = keywordKeys[kwIndex[0]]
-#            if type(results) == dict:
-#                # An index for this keyword exists; remove our value from it
-#                index = results[kwKey]
-#                #TODO: this might not actually be an index, but a value... do some name-mangling to avoid this
-#                index.remove(name)
-#                # Remove the index completely if it is empty, otherwise put it back
-#                if len(index) > 0:
-#                    df = self.iterativeStore(kwKey, index)
-#                else:
-#                    df = self.iterativeDelete(kwKey)
-#                df.addCallback(findNextKeyword)
-#            else:
-#                # No index exists for this keyword; skip it
-#                findNextKeyword()
-#
-#        def findNextKeyword(results=None):
-#            kwIndex[0] += 1
-#            if kwIndex[0] < len(keywordKeys):
-#                kwKey = keywordKeys[kwIndex[0]]
-#                #TODO: kademlia is going to replicate the un-updated inverted index; stop that from happening!!
-#                df = self.iterativeFindValue(kwKey)
-#                df.addCallback(removeFromInvertedIndex)
-#            else:
-#                # We're done. Let the caller of the parent method know
-#                outerDf.callback(None)
-#             
-#        if len(keywordKeys) > 0:
-#            # Start the "keyword store"-cycle
-#            findNextKeyword()
-#            
-#        return outerDf
-
 
     def _removeFromInvertedIndexes(self, keywordKeys, indexLink):
         # Prepare a deferred result for this operation
@@ -252,8 +177,8 @@ class EntangledNode(kademlia.node.Node):
             kwIndex[0] += 1
             if kwIndex[0] < len(keywordKeys):
                 kwKey = keywordKeys[kwIndex[0]]
-                #TODO: kademlia is going to replicate the un-updated inverted index; stop that from happening!!
-                df = self.iterativeFindValue(kwKey)
+                # We use the find algorithm directly so that kademlia does not replicate the un-updated inverted index
+                df = self._iterativeFind(kwKey, rpc='findValue')
                 df.addCallback(removeFromInvertedIndex)
             else:
                 # We're done. Let the caller of the parent method know
