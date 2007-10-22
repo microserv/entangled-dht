@@ -568,9 +568,24 @@ class Node(object):
         """ Periodically called to perform k-bucket refreshes and data
         replication/republishing as necessary """
         #print 'refreshNode called'
-        df = self._routingTable.refreshKBuckets(0, False)
+        df = self._refreshRoutingTable()
         df.addCallback(self._republishData)
         protocol.reactor.callLater(constants.checkRefreshInterval, self._refreshNode)
+        
+    def _refreshRoutingTable(self):
+        nodeIDs = self._routingTable.getIDsToRefresh(0, False)
+        outerDf = defer.Deferred()
+        def searchForNextNodeID(dfResult=None):
+            if len(nodeIDs) > 0:
+                searchID = nodeIDs.pop()
+                df = self.iterativeFindNode(searchID)
+                df.addCallback(searchForNextNodeID)
+            else:
+                # If this is reached, we have finished refreshing the routing table
+                outerDf.callback(None)
+        # Start the refreshing cycle
+        searchForNextNodeID()
+        return outerDf
 
     def _republishData(self, *args):
         """ Republishes and expires any stored data (i.e. stored

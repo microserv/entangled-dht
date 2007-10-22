@@ -69,9 +69,10 @@ class RoutingTable(object):
         @raise ValueError: No contact with the specified contact ID is known
                            by this node
         """
-    def refreshKBuckets(self, startIndex=0, force=False):
-        """ Refreshes all k-buckets that need refreshing, starting at the
-        k-bucket with the specified index
+    def getRefreshList(self, startIndex=0, force=False):
+        """ Finds all k-buckets that need refreshing, starting at the
+        k-bucket with the specified index, and returns IDs to be searched for
+        in order to refresh those k-buckets
 
         @param startIndex: The index of the bucket to start refreshing at;
                            this bucket and those further away from it will
@@ -84,6 +85,10 @@ class RoutingTable(object):
                       will be refreshed, regardless of the time they were last
                       accessed.
         @type force: bool
+        
+        @return: A list of node ID's that the parent node should search for
+                 in order to refresh the routing Table
+        @rtype: list
         """
     def removeContact(self, contactID):
         """ Remove the contact with the specified node ID from the routing
@@ -238,9 +243,10 @@ class TreeRoutingTable(RoutingTable):
         else:
             return contact
 
-    def refreshKBuckets(self, startIndex=0, force=False):
-        """ Refreshes all k-buckets that need refreshing, starting at the
-        k-bucket with the specified index
+    def getRefreshList(self, startIndex=0, force=False):
+        """ Finds all k-buckets that need refreshing, starting at the
+        k-bucket with the specified index, and returns IDs to be searched for
+        in order to refresh those k-buckets
 
         @param startIndex: The index of the bucket to start refreshing at;
                            this bucket and those further away from it will
@@ -253,31 +259,19 @@ class TreeRoutingTable(RoutingTable):
                       will be refreshed, regardless of the time they were last
                       accessed.
         @type force: bool
+        
+        @return: A list of node ID's that the parent node should search for
+                 in order to refresh the routing Table
+        @rtype: list
         """
-        #print '_refreshKbuckets called with index:',startIndex
-        bucketIndex = []
-        bucketIndex.append(startIndex + 1)
-        outerDf = defer.Deferred()
-        def refreshNextKBucket(dfResult=None):
-            #print '  refreshNexKbucket called; bucketindex is', bucketIndex[0]
-            bucketIndex[0] += 1
-            while bucketIndex[0] < len(self._buckets):
-                if force or (int(time.time()) - self._buckets[bucketIndex[0]].lastAccessed >= constants.refreshTimeout):
-                    searchID = self._randomIDInBucketRange(bucketIndex[0])
-                    self._buckets[bucketIndex[0]].lastAccessed = int(time.time())
-                    #print '  refreshing bucket',bucketIndex[0]
-                    df = self.iterativeFindNode(searchID)
-                    df.addCallback(refreshNextKBucket)
-                    return
-                else:
-                    bucketIndex[0] += 1
-            # If this is reached, we have refreshed all the buckets
-            #print '  all buckets refreshed; initiating outer deferred callback'
-            outerDf.callback(None)
-        #print '_refreshKbuckets starting cycle'
-        refreshNextKBucket()
-        #print '_refreshKbuckets returning'
-        return outerDf
+        bucketIndex = startIndex
+        refreshIDs = []
+        for bucket in self._buckets[startIndex:]:
+            if force or (int(time.time()) - bucket.lastAccessed >= constants.refreshTimeout):
+                searchID = self._randomIDInBucketRange(bucketIndex)
+                refreshIDs.append(searchID)
+            bucketIndex += 1
+        return refreshIDs
 
     def removeContact(self, contactID):
         """ Remove the contact with the specified node ID from the routing
