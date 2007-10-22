@@ -573,7 +573,7 @@ class Node(object):
         protocol.reactor.callLater(constants.checkRefreshInterval, self._refreshNode)
         
     def _refreshRoutingTable(self):
-        nodeIDs = self._routingTable.getIDsToRefresh(0, False)
+        nodeIDs = self._routingTable.getRefreshList(0, False)
         outerDf = defer.Deferred()
         def searchForNextNodeID(dfResult=None):
             if len(nodeIDs) > 0:
