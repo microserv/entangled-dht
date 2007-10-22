@@ -515,4 +515,34 @@ class DistributedTupleSpacePeer(EntangledNode):
             df.callback(dTuple)
             return 'read'
         
-        
+
+import sys
+if __name__ == '__main__':
+    if len(sys.argv) < 2:
+        print 'Usage:\n%s UDP_PORT  [KNOWN_NODE_IP  KNOWN_NODE_PORT]' % sys.argv[0]
+        print 'or:\n%s UDP_PORT  [FILE_WITH_KNOWN_NODES]' % sys.argv[0]
+        print '\nIf a file is specified, it should containg one IP address and UDP port\nper line, seperated by a space.'
+        sys.exit(1)
+    try:
+        int(sys.argv[1])
+    except ValueError:
+        print '\nUDP_PORT must be an integer value.\n'
+        print 'Usage:\n%s UDP_PORT  [KNOWN_NODE_IP  KNOWN_NODE_PORT]' % sys.argv[0]
+        print 'or:\n%s UDP_PORT  [FILE_WITH_KNOWN_NODES]' % sys.argv[0]
+        print '\nIf a file is specified, it should contain one IP address and UDP port\nper line, seperated by a space.'
+        sys.exit(1)
+    
+    node = EntangledNode()
+    if len(sys.argv) == 4:
+        knownNodes = [(sys.argv[2], int(sys.argv[3]))]
+    elif len(sys.argv) == 3:
+        knownNodes = []
+        f = open(sys.argv[2], 'r')
+        lines = f.readlines()
+        f.close()
+        for line in lines:
+            ipAddress, udpPort = line.split()
+            knownNodes.append((ipAddress, int(udpPort)))
+    else:
+        knownNodes = None
+    node.joinNetwork(int(sys.argv[1]), knownNodes)

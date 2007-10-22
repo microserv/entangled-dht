@@ -7,7 +7,7 @@
 # The docstrings in this module contain epytext markup; API documentation
 # may be created by processing this file with epydoc: http://epydoc.sf.net
 
-import hashlib, random, math, time
+import hashlib, random, time
 
 from twisted.internet import defer
 
@@ -294,15 +294,15 @@ class Node(object):
         else:
             return self.findNode(key, **kwargs)
 
-    def _distance(self, keyOne, keyTwo):
-        """ Calculate the XOR result between two string variables
-        
-        @return: XOR result of two long variables
-        @rtype: long
-        """
-        valKeyOne = long(keyOne.encode('hex'), 16)
-        valKeyTwo = long(keyTwo.encode('hex'), 16)
-        return valKeyOne ^ valKeyTwo
+#    def _distance(self, keyOne, keyTwo):
+#        """ Calculate the XOR result between two string variables
+#        
+#        @return: XOR result of two long variables
+#        @rtype: long
+#        """
+#        valKeyOne = long(keyOne.encode('hex'), 16)
+#        valKeyTwo = long(keyTwo.encode('hex'), 16)
+#        return valKeyOne ^ valKeyTwo
 
     def _generateID(self):
         """ Generates a 160-bit pseudo-random identifier
@@ -404,7 +404,7 @@ class Node(object):
                     # We are looking for a value, and the remote node didn't have it
                     # - mark it as the closest "empty" node, if it is
                     if 'closestNodeNoValue' in findValueResult:
-                        if self._distance(key, responseMsg.nodeID) < self._distance(key, activeContacts[0].id):
+                        if self._routingTable.distance(key, responseMsg.nodeID) < self._routingTable.distance(key, activeContacts[0].id):
                             findValueResult['closestNodeNoValue'] = aContact
                     else:
                         findValueResult['closestNodeNoValue'] = aContact             
@@ -436,7 +436,7 @@ class Node(object):
             #print '==> searchiteration'
             slowNodeCount[0] = len(activeProbes)
             # Sort the discovered active nodes from closest to furthest
-            activeContacts.sort(lambda firstContact, secondContact, targetKey=key: cmp(self._distance(firstContact.id, targetKey), self._distance(secondContact.id, targetKey)))      
+            activeContacts.sort(lambda firstContact, secondContact, targetKey=key: cmp(self._routingTable.distance(firstContact.id, targetKey), self._routingTable.distance(secondContact.id, targetKey)))      
             # This makes sure a returning probe doesn't force calling this function by mistake
             while len(pendingIterationCalls):
                 del pendingIterationCalls[0]
@@ -459,7 +459,7 @@ class Node(object):
             if len(activeContacts):
                 prevClosestNode[0] = activeContacts[0]
             contactedNow = 0
-            shortlist.sort(lambda firstContact, secondContact, targetKey=key: cmp(self._distance(firstContact.id, targetKey), self._distance(secondContact.id, targetKey)))      
+            shortlist.sort(lambda firstContact, secondContact, targetKey=key: cmp(self._routingTable.distance(firstContact.id, targetKey), self._routingTable.distance(secondContact.id, targetKey)))      
             for contact in shortlist:
                 if contact.id not in alreadyContacted:
                     activeProbes.append(contact.id)
@@ -501,27 +501,27 @@ class Node(object):
 #        bucketIndex = int(math.log(distance, 2))
 #        return bucketIndex
     
-    def _randomIDInBucketRange(self, bucketIndex):
-        """ Returns a random ID in the specified k-bucket's range
-        
-        @param bucketIndex: The index of the k-bucket to use
-        @type bucketIndex: int
-        """
-        def makeIDString(distance):
-            id = hex(distance)[2:]
-            if id[-1] == 'L':
-                id = id[:-1]
-            if len(id) % 2 != 0:
-                id = '0' + id
-            id = id.decode('hex')
-            id = (20 - len(id))*'\x00' + id
-            return id
-        min = math.pow(2, bucketIndex)
-        max = math.pow(2, bucketIndex+1)
-        distance = random.randrange(min, max)
-        distanceStr = makeIDString(distance)
-        randomID = makeIDString(self._distance(distanceStr, self.id))
-        return randomID
+#    def _randomIDInBucketRange(self, bucketIndex):
+#        """ Returns a random ID in the specified k-bucket's range
+#        
+#        @param bucketIndex: The index of the k-bucket to use
+#        @type bucketIndex: int
+#        """
+#        def makeIDString(distance):
+#            id = hex(distance)[2:]
+#            if id[-1] == 'L':
+#                id = id[:-1]
+#            if len(id) % 2 != 0:
+#                id = '0' + id
+#            id = id.decode('hex')
+#            id = (20 - len(id))*'\x00' + id
+#            return id
+#        min = math.pow(2, bucketIndex)
+#        max = math.pow(2, bucketIndex+1)
+#        distance = random.randrange(min, max)
+#        distanceStr = makeIDString(distance)
+#        randomID = makeIDString(self._distance(distanceStr, self.id))
+#        return randomID
 
 #    def _refreshKBuckets(self, startIndex=0, force=False):
 #        """ Refreshes all k-buckets that need refreshing, starting at the
@@ -594,11 +594,30 @@ class Node(object):
 import sys
 if __name__ == '__main__':
     if len(sys.argv) < 2:
-        print 'Usage:\n%s UDP_PORT KNOWN_NODE_IP  KNOWN_NODE_PORT' % sys.argv[0]
+        print 'Usage:\n%s UDP_PORT  [KNOWN_NODE_IP  KNOWN_NODE_PORT]' % sys.argv[0]
+        print 'or:\n%s UDP_PORT  [FILE_WITH_KNOWN_NODES]' % sys.argv[0]
+        print '\nIf a file is specified, it should containg one IP address and UDP port\nper line, seperated by a space.'
         sys.exit(1)
+    try:
+        int(sys.argv[1])
+    except ValueError:
+        print '\nUDP_PORT must be an integer value.\n'
+        print 'Usage:\n%s UDP_PORT  [KNOWN_NODE_IP  KNOWN_NODE_PORT]' % sys.argv[0]
+        print 'or:\n%s UDP_PORT  [FILE_WITH_KNOWN_NODES]' % sys.argv[0]
+        print '\nIf a file is specified, it should contain one IP address and UDP port\nper line, seperated by a space.'
+        sys.exit(1)
+    
     node = Node()
     if len(sys.argv) == 4:
         knownNodes = [(sys.argv[2], int(sys.argv[3]))]
+    elif len(sys.argv) == 3:
+        knownNodes = []
+        f = open(sys.argv[2], 'r')
+        lines = f.readlines()
+        f.close()
+        for line in lines:
+            ipAddress, udpPort = line.split()
+            knownNodes.append((ipAddress, int(udpPort)))
     else:
         knownNodes = None
     node.joinNetwork(int(sys.argv[1]), knownNodes)

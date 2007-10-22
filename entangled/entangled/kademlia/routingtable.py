@@ -5,12 +5,11 @@
 # The docstrings in this module contain epytext markup; API documentation
 # may be created by processing this file with epydoc: http://epydoc.sf.net
 
-import time
+import time, random
 
 from twisted.internet import defer
 
 import constants
-from contact import Contact
 import kbucket
 from protocol import TimeoutError
 
@@ -33,6 +32,17 @@ class RoutingTable(object):
         @param contact: The contact to add to this node's k-buckets
         @type contact: kademlia.contact.Contact
         """
+    
+    def distance(self, keyOne, keyTwo):
+        """ Calculate the XOR result between two string variables
+        
+        @return: XOR result of two long variables
+        @rtype: long
+        """
+        valKeyOne = long(keyOne.encode('hex'), 16)
+        valKeyTwo = long(keyTwo.encode('hex'), 16)
+        return valKeyOne ^ valKeyTwo
+
     def findCloseNodes(self, key, count, _rpcNodeID=None):
         """ Finds a number of known nodes closest to the node/value with the
         specified key.
@@ -310,7 +320,23 @@ class TreeRoutingTable(RoutingTable):
             else:
                 i += 1
         return i
-    
+
+    def _randomIDInBucketRange(self, bucketIndex):
+        """ Returns a random ID in the specified k-bucket's range
+        
+        @param bucketIndex: The index of the k-bucket to use
+        @type bucketIndex: int
+        """
+        idValue = random.randrange(self._buckets[bucketIndex].rangeMin, self._buckets[bucketIndex].rangeMax)
+        randomID = hex(idValue)[2:]
+        if randomID[-1] == 'L':
+            randomID = randomID[:-1]
+        if len(randomID) % 2 != 0:
+            randomID = '0' + id
+        randomID = randomID.decode('hex')
+        randomID = (20 - len(id))*'\x00' + id
+        return randomID
+
     def _splitBucket(self, oldBucketIndex):
         """ Splits the specified k-bucket into two new buckets which together
         cover the same range in the key/ID space
