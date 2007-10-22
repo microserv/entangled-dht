@@ -7,8 +7,6 @@
 
 import time, random
 
-from twisted.internet import defer
-
 import constants
 import kbucket
 from protocol import TimeoutError
