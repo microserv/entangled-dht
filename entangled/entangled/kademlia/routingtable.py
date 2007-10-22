@@ -332,7 +332,7 @@ class TreeRoutingTable(RoutingTable):
         if randomID[-1] == 'L':
             randomID = randomID[:-1]
         if len(randomID) % 2 != 0:
-            randomID = '0' + id
+            randomID = '0' + randomID
         randomID = randomID.decode('hex')
         randomID = (20 - len(id))*'\x00' + id
         return randomID
