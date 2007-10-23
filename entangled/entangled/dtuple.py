@@ -101,7 +101,8 @@ class DistributedTupleSpacePeer(EntangledNode):
 
         df = self._findKeyForTemplate(dTuple, True)
         df.addCallback(checkIfListenerExists)
-        
+        return df
+
     def get(self, template):
         """ Reads and removes (consumes) a tuple from the tuple space.
         

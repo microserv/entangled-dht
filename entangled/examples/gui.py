@@ -34,10 +34,13 @@ class EntangledViewer(gtk.DrawingArea):
     
         self.node._protocol.__realDatagramReceived = self.node._protocol.datagramReceived
         self.node._protocol.datagramReceived = self.__guiDatagramReceived
+        self.msgCounter = 0
+        self.printMsgCount = False
         
     def __guiSendRPC(self, contact, method, args, rawResponse=False):
         #print 'sending'
         self.drawComms(contact.id, method)
+        self.msgCounter += 1
         return self.node._protocol.__realSendRPC(contact, method, args, rawResponse)
     
     def __guiDatagramReceived(self, datagram, address):
@@ -193,6 +196,14 @@ class EntangledViewer(gtk.DrawingArea):
                 cr.stroke()
             i += 1
         
+        if self.printMsgCount == True:
+            cr.set_source_rgb(0.2,0.2,0.2)
+            cr.set_font_size(12.0)
+            cr.move_to(20, 20)
+            cr.show_text('Messages sent: %d' % self.msgCounter)
+            cr.stroke()
+            self.msgCounter = 0
+            self.printMsgCount = False
         
 
     def timeout(self):
@@ -488,7 +499,10 @@ class EntangledViewerWindow(gtk.Window):
     def publishData(self, sender, nameFunc, valueFunc):
         name = nameFunc()
         value = valueFunc()
-        self.node.publishData(name, value)
+        def completed(result):
+            self.viewer.printMsgCount = True
+        df = self.node.publishData(name, value)
+        df.addCallback(completed)
         
     def storeValue(self, sender, keyFunc, valueFunc):
         key = keyFunc()
@@ -498,7 +512,11 @@ class EntangledViewerWindow(gtk.Window):
         hKey = h.digest()
         
         value = valueFunc()
-        self.node.iterativeStore(hKey, value)
+        
+        def completed(result):
+            self.viewer.printMsgCount = True
+        df = self.node.iterativeStore(hKey, value)
+        df.addCallback(completed)
 
     def getValue(self, sender, entryKey, showFunc):
         sender.set_sensitive(False)
@@ -518,6 +536,7 @@ class EntangledViewerWindow(gtk.Window):
             else:
                 value = '---not found---'
             showFunc(value)
+            self.viewer.printMsgCount = True
         def error(failure):
             print 'GUI: an error occurred:', failure.getErrorMessage()
             sender.set_sensitive(True)
@@ -533,8 +552,10 @@ class EntangledViewerWindow(gtk.Window):
         h = hashlib.sha1()
         h.update(key)
         hKey = h.digest()
-        
-        self.node.iterativeDelete(hKey)
+        def completed(result):
+            self.viewer.printMsgCount = True
+        df = self.node.iterativeDelete(hKey)
+        df.addCallback(completed)
         
     def searchForKeywords(self, sender, entryKeyword, showFunc):
         sender.set_sensitive(False)
@@ -545,6 +566,7 @@ class EntangledViewerWindow(gtk.Window):
             sender.set_sensitive(True)
             entryKeyword.set_sensitive(True)
             showFunc(result)
+            self.viewer.printMsgCount = True
         def error(failure):
             print 'GUI: an error occurred:', failure.getErrorMessage()
             sender.set_sensitive(True)
@@ -556,14 +578,20 @@ class EntangledViewerWindow(gtk.Window):
         
     def removeData(self, sender, nameFunc):
         name = nameFunc()
-        self.node.removeData(name)
+        def completed(result):
+            self.viewer.printMsgCount = True
+        df = self.node.removeData(name)
+        df.addCallback(completed)
 
     ###### Tuple Space Controls ######
     def putTuple(self, sender, tupleFunc):
         dTuple = self._tupleFromStr(tupleFunc())
         if dTuple == None:
             return
-        self.node.put(dTuple)
+        def completed(result):
+            self.viewer.printMsgCount = True
+        df = self.node.put(dTuple)
+        df.addCallback(completed)
         
     def _tupleFromStr(self, text):
         tp = None
@@ -596,6 +624,7 @@ class EntangledViewerWindow(gtk.Window):
             else:
                 result = str(result)
             showFunc(result)
+            self.viewer.printMsgCount = True
         def error(failure):
             print 'GUI: an error occurred:', failure.getErrorMessage()
             sender.set_sensitive(True)
@@ -623,6 +652,7 @@ class EntangledViewerWindow(gtk.Window):
             else:
                 result = str(result)
             showFunc(result)
+            self.viewer.printMsgCount = True
         def error(failure):
             print 'GUI: an error occurred:', failure.getErrorMessage()
             sender.set_sensitive(True)
