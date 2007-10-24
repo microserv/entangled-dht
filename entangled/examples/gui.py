@@ -10,9 +10,9 @@ pygtk.require('2.0')
 import sys, gtk, gobject, cairo
 import math
 
-from twisted.internet.gtk2reactor import Gtk2Reactor
+from twisted.internet import gtk2reactor
 import entangled.kademlia.protocol
-entangled.kademlia.protocol.reactor = Gtk2Reactor()
+entangled.kademlia.protocol.reactor = gtk2reactor.install()
 import entangled.dtuple
 
 import entangled.kademlia.contact
@@ -202,8 +202,6 @@ class EntangledViewer(gtk.DrawingArea):
             cr.move_to(20, 20)
             cr.show_text('Messages sent: %d' % self.msgCounter)
             cr.stroke()
-            self.msgCounter = 0
-            self.printMsgCount = False
         
 
     def timeout(self):
@@ -212,6 +210,10 @@ class EntangledViewer(gtk.DrawingArea):
         self.window.invalidate_rect(self.allocation, False)
         return True
     
+    def drawMsgCounter(self):
+        self.printMsgCount = True
+        gobject.timeout_add(3000, self.removeMsgCount)
+        
     def drawComms(self, contactID, msg):
         if contactID not in self.comms:
             self.comms[contactID] = msg
@@ -237,6 +239,13 @@ class EntangledViewer(gtk.DrawingArea):
         finally:
             self.window.invalidate_rect(self.allocation, False)
             return False
+        
+    def removeMsgCount(self):
+        if self.printMsgCount == True:
+            self.printMsgCount = False
+            self.msgCounter = 0
+            self.window.invalidate_rect(self.allocation, False)
+        return False
         
     
 
@@ -267,8 +276,7 @@ class EntangledViewerWindow(gtk.Window):
         #notebook.append_page(frame, gtk.Label('Low-level DHT controls'))
         lowlevelVbox = gtk.VBox(spacing=3)
         lowlevelVbox.show()
-        
-        
+ 
         #frame.add(kademliaTabVbox)
         notebook.append_page(lowlevelVbox, gtk.Label('Low-level DHT controls'))
 
@@ -499,6 +507,8 @@ class EntangledViewerWindow(gtk.Window):
     def publishData(self, sender, nameFunc, valueFunc):
         name = nameFunc()
         value = valueFunc()
+        self.viewer.msgCounter = 0
+        self.viewer.printMsgCount = False
         def completed(result):
             self.viewer.printMsgCount = True
         df = self.node.publishData(name, value)
@@ -513,6 +523,9 @@ class EntangledViewerWindow(gtk.Window):
         
         value = valueFunc()
         
+        self.viewer.msgCounter = 0
+        self.viewer.printMsgCount = False
+        
         def completed(result):
             self.viewer.printMsgCount = True
         df = self.node.iterativeStore(hKey, value)
@@ -525,7 +538,8 @@ class EntangledViewerWindow(gtk.Window):
         h = hashlib.sha1()
         h.update(key)
         hKey = h.digest()
-        
+        self.viewer.msgCounter = 0
+        self.viewer.printMsgCount = False
         def showValue(result):
             sender.set_sensitive(True)
             entryKey.set_sensitive(True)
@@ -552,6 +566,8 @@ class EntangledViewerWindow(gtk.Window):
         h = hashlib.sha1()
         h.update(key)
         hKey = h.digest()
+        self.viewer.msgCounter = 0
+        self.viewer.printMsgCount = False
         def completed(result):
             self.viewer.printMsgCount = True
         df = self.node.iterativeDelete(hKey)
@@ -561,10 +577,15 @@ class EntangledViewerWindow(gtk.Window):
         sender.set_sensitive(False)
         keyword = entryKeyword.get_text()
         entryKeyword.set_sensitive(False)
-        
+        self.viewer.msgCounter = 0
+        self.viewer.printMsgCount = False
         def showValue(result):
             sender.set_sensitive(True)
             entryKeyword.set_sensitive(True)
+            sourceListString = ''
+            for name in result:
+                sourceListString += '%s\n' % name
+            result = sourceListString[:-1]
             showFunc(result)
             self.viewer.printMsgCount = True
         def error(failure):
@@ -578,6 +599,8 @@ class EntangledViewerWindow(gtk.Window):
         
     def removeData(self, sender, nameFunc):
         name = nameFunc()
+        self.viewer.msgCounter = 0
+        self.viewer.printMsgCount = False
         def completed(result):
             self.viewer.printMsgCount = True
         df = self.node.removeData(name)
@@ -588,6 +611,8 @@ class EntangledViewerWindow(gtk.Window):
         dTuple = self._tupleFromStr(tupleFunc())
         if dTuple == None:
             return
+        self.viewer.msgCounter = 0
+        self.viewer.printMsgCount = False
         def completed(result):
             self.viewer.printMsgCount = True
         df = self.node.put(dTuple)
@@ -615,7 +640,8 @@ class EntangledViewerWindow(gtk.Window):
             return
         sender.set_sensitive(False)
         entryTemplate.set_sensitive(False)
-        
+        self.viewer.msgCounter = 0
+        self.viewer.printMsgCount = False
         def showValue(result):
             sender.set_sensitive(True)
             entryTemplate.set_sensitive(True)
@@ -643,7 +669,8 @@ class EntangledViewerWindow(gtk.Window):
             return
         sender.set_sensitive(False)
         entryTemplate.set_sensitive(False)
-        
+        self.viewer.msgCounter = 0
+        self.viewer.printMsgCount = False
         def showValue(result):
             sender.set_sensitive(True)
             entryTemplate.set_sensitive(True)

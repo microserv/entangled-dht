@@ -21,6 +21,9 @@ class EntangledNode(kademlia.node.Node):
     This is basically a Kademlia node, but with a few more (non-standard, but
     useful) RPCs defined.
     """
+    def __init__(self, dataStore=None, routingTable=None, networkProtocol=None):
+        kademlia.node.Node.__init__(self, dataStore, routingTable, networkProtocol)
+        self.invalidKeywords = []
   
     def searchForKeywords(self, keywords):
         """ The Entangled search operation (keyword-based)
@@ -47,14 +50,15 @@ class EntangledNode(kademlia.node.Node):
                         if name.find(kw) == -1:
                             filteredResults.remove(name)
                             break
-                sourceListString = ''
-                for name in filteredResults:
-                    sourceListString += '%s\n' % name
-                result = sourceListString[:-1]
+                #sourceListString = ''
+                #for name in filteredResults:
+                #    sourceListString += '%s\n' % name
+                #result = sourceListString[:-1]
             else:
                 # Value wasn't found
-                result = ''
-            return result
+                #result = ''
+                index = []
+            return index
  
         df = self.iterativeFindValue(key)
         df.addCallback(checkResult)
@@ -238,7 +242,7 @@ class EntangledNode(kademlia.node.Node):
             splitText = splitText.replace(splitter, ' ')
         for keyword in splitText.split():
             # Only consider keywords with 3 or more letters
-            if len(keyword) >= 3 and keyword != text:
+            if len(keyword) >= 3 and keyword != text and keyword not in self.invalidKeywords:
                 h = hashlib.sha1()
                 h.update(keyword)
                 key = h.digest()
