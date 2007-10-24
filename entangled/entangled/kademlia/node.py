@@ -212,6 +212,27 @@ class Node(object):
         @type contactID: str
         """
         self._routingTable.removeContact(contactID)
+        
+    def findContact(self, contactID):
+        """
+        @return: Contact object of remote node with the specified node ID
+        @rtype: twisted.internet.defer.Deferred
+        """
+        try:
+            contact = self._routingTable.getContact(contactID)
+            df = defer.Deferred()
+            df.callback(contact)
+        except ValueError:
+            def parseResults(nodes):
+                if contactID in nodes:
+                    contact = nodes[nodes.index(contactID)]
+                    return contact
+                else:
+                    return None            
+            df = self.iterativeFindNode(contactID)
+            df.addCallback(parseResults)
+        return df
+        
 
     @rpcmethod
     def ping(self):
