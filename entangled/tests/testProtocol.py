@@ -10,11 +10,14 @@ import unittest
 from twisted.internet import defer
 from twisted.python import failure
 import twisted.internet.selectreactor
+from twisted.internet.protocol import DatagramProtocol
 
 import entangled.kademlia.protocol
 import entangled.kademlia.contact
 import entangled.kademlia.constants
+import entangled.kademlia.msgtypes
 from entangled.kademlia.node import rpcmethod
+
 
 class FakeNode(object):
     """ A fake node object implementing some RPC and non-RPC methods to 
@@ -55,6 +58,23 @@ class FakeNode(object):
                 return f
         df.addErrback(handleError)
         return df
+
+class ClientDatagramProtocol(DatagramProtocol):
+    data = ''
+    destination = ('127.0.0.1', 91824)
+    
+    def startProtocol(self):
+        self.transport.connect(self.destination[0], self.destination[1])
+        self.sendDatagram()
+    
+    def sendDatagram(self):
+        if len(self.data):
+            self.transport.write(self.data)
+
+#    def datagramReceived(self, datagram, host):
+#        print 'Datagram received: ', repr(datagram)
+#        self.sendDatagram()
+
         
 
 class KademliaProtocolTest(unittest.TestCase):
@@ -168,7 +188,42 @@ class KademliaProtocolTest(unittest.TestCase):
         self.failIf(self.error, self.error)
         # The list of sent RPC messages should be empty at this stage
         self.failUnlessEqual(len(self.protocol._sentMessages), 0, 'The protocol is still waiting for a RPC result, but the transaction is already done!')
-        
+
+    def testDatagramLargeMessageReconstruction(self):
+        """ Tests if a large amount of data can be successfully re-constructed from multiple UDP datagrams """
+        remoteContact = entangled.kademlia.contact.Contact('node2', '127.0.0.1', 91824, self.protocol)
+        self.node.addContact(remoteContact)
+        self.error = None
+        responseData = 10000 * '0'
+        def handleError(f):
+            if f.check((entangled.kademlia.protocol.TimeoutError)):
+                self.error = 'RPC from the following contact timed out: %s' % f.getErrorMessage()
+            else:
+                self.error = 'An RPC error occurred: %s' % f.getErrorMessage()
+        def handleResult(result):
+            if result != responseData:
+                self.error = 'Result from RPC is incorrect; expected "%s", got "%s"' % (responseData, result)
+        # Publish the "local" node on the network    
+        entangled.kademlia.protocol.reactor.listenUDP(91824, self.protocol)
+        # ...and make it think it is waiting for a result from an RPC
+        msgID = 'abcdef123456'
+        df = defer.Deferred()
+        timeoutCall = entangled.kademlia.protocol.reactor.callLater(entangled.kademlia.constants.rpcTimeout, self.protocol._msgTimeout, msgID)
+        self.protocol._sentMessages[msgID] = (remoteContact.id, df, timeoutCall)
+        # Simulate the "reply" transmission
+        msg = entangled.kademlia.msgtypes.ResponseMessage(msgID, 'node2', responseData)
+        msgPrimitive = self.protocol._translator.toPrimitive(msg)
+        encodedMsg = self.protocol._encoder.encode(msgPrimitive)
+        udpClient = ClientDatagramProtocol()
+        udpClient.data = encodedMsg
+        entangled.kademlia.protocol.reactor.listenUDP(0, udpClient)
+        df.addCallback(handleResult)
+        df.addErrback(handleError)
+        df.addBoth(lambda _: entangled.kademlia.protocol.reactor.stop())
+        entangled.kademlia.protocol.reactor.run()
+        self.failIf(self.error, self.error)
+        # The list of sent RPC messages should be empty at this stage
+        #self.failUnlessEqual(len(self.protocol._sentMessages), 0, 'The protocol is still waiting for a RPC result, but the transaction is already done!')
 
 
 def suite():

@@ -22,13 +22,10 @@ import hashlib
 
 class FileServer(Protocol):
     def dataReceived(self, data):
-        print 'SERVER SIDE RX:', data
         request = data.strip()
-        print '   searching...'
         for entry in os.walk(self.factory.sharePath):
             for filename in entry[2]:
                 if filename == request:
-                    print 'SERVER SIDE TX'
                     fullPath = '%s/%s' % (entry[0], filename)
                     f = open(fullPath, 'r')
                     buf = f.read()
@@ -98,7 +95,7 @@ class FileShareWindow(gtk.Window):
         
         sw = gtk.ScrolledWindow()
         sw.set_shadow_type(gtk.SHADOW_ETCHED_IN)
-        sw.set_policy(gtk.POLICY_NEVER, gtk.POLICY_AUTOMATIC)
+        sw.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
         vbox.pack_start(sw)
         # Create tree model
         model = self.createListStore([])
@@ -147,7 +144,7 @@ class FileShareWindow(gtk.Window):
         # List view
         sw = gtk.ScrolledWindow()
         sw.set_shadow_type(gtk.SHADOW_ETCHED_IN)
-        sw.set_policy(gtk.POLICY_NEVER, gtk.POLICY_AUTOMATIC)
+        sw.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
         vbox.pack_start(sw)
         model = self.createListStore([])
         self.localTreeView = gtk.TreeView(model)
@@ -227,15 +224,18 @@ class FileShareWindow(gtk.Window):
                     files.append(file)
                     paths.append(entry[0])
         model = self.localTreeView.get_model()
-
+        
+        print 'files: ', len(files)
         def publishNextFile(result=None):
             if len(files) > 0:
                 filename = files.pop()
                 iter = model.append()
+                print '-->',filename
                 model.set(iter, 0, '%s/%s' % (paths.pop(), filename))
                 df = self.node.publishData(filename, self.node.id)
                 df.addCallback(publishNextFile)
             else:
+                print '** done **'
                 outerDf.callback(None)
         def completed(result):
             sender.set_sensitive(True)
