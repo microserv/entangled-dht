@@ -173,6 +173,7 @@ class KademliaProtocol(protocol.DatagramProtocol):
             seqNumber = 0
             startPos = 0
             while seqNumber < totalPackets:
+                reactor.iterate()
                 print ' --> sending seq:', seqNumber
                 packetData = data[startPos:startPos+self.msgSizeLimit]
                 encSeqNumber = chr(seqNumber & 0xff00) + chr(seqNumber & 0xff)
