@@ -197,8 +197,8 @@ class KademliaProtocolTest(unittest.TestCase):
         remoteContact = entangled.kademlia.contact.Contact('node2', '127.0.0.1', 91824, self.protocol)
         self.node.addContact(remoteContact)
         self.error = None
-        #responseData = 8143 * '0'
-        responseData = 106385 * '0' # Threshold for 12 packets - make this 1 more and see what happens
+        #responseData = 8143 * '0' # Threshold for a single packet transmission
+        responseData = 300000 * '0'
         def handleError(f):
             if f.check((entangled.kademlia.protocol.TimeoutError)):
                 self.error = 'RPC from the following contact timed out: %s' % f.getErrorMessage()

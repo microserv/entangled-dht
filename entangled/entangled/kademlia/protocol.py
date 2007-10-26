@@ -83,19 +83,14 @@ class KademliaProtocol(protocol.DatagramProtocol):
         @note: This is automatically called by Twisted when the protocol
                receives a UDP datagram
         """
-        print'rx dgram'
         totalPackets = (ord(datagram[1]) << 8) | ord(datagram[2])
-        print '==totalpackets:', totalPackets
-        print '--from:', datagram[1:3].encode('hex')
         if totalPackets > 1:
             txID = datagram[0]
             seqNumber = (ord(datagram[3]) << 8) | ord(datagram[4])
-            print 'seq', seqNumber
             packetID = '%s%d%s' % (address[0], address[1], txID)
             if packetID not in self._partialMessages:
                 self._partialMessages[packetID] = {}
             self._partialMessages[packetID][seqNumber] = datagram[5:]
-            print 'len of collected keys:', len(self._partialMessages[packetID])
             if len(self._partialMessages[packetID]) == totalPackets:
                 keys = self._partialMessages[packetID].keys()
                 keys.sort()
@@ -108,8 +103,6 @@ class KademliaProtocol(protocol.DatagramProtocol):
                 return
         else:
             datagram = datagram[5:]
-        
-        print 'LENGTH:',len(datagram)
         
         msgPrimitive = self._encoder.decode(datagram)
         message = self._translator.fromPrimitive(msgPrimitive)
@@ -168,17 +161,15 @@ class KademliaProtocol(protocol.DatagramProtocol):
             totalPackets = len(data) / self.msgSizeLimit
             if len(data) % self.msgSizeLimit > 0:
                 totalPackets += 1
-            print ' -->totalpackets:', totalPackets, len(data), self.msgSizeLimit, len(data) / float(self.msgSizeLimit)
             encTotalPackets = chr(totalPackets >> 8) + chr(totalPackets & 0xff)
             seqNumber = 0
             startPos = 0
             while seqNumber < totalPackets:
                 reactor.iterate()
-                print ' --> sending seq:', seqNumber
                 packetData = data[startPos:startPos+self.msgSizeLimit]
                 encSeqNumber = chr(seqNumber >> 8) + chr(seqNumber & 0xff)
                 txData = '%c%s%s%s' % (chr(self.udpTxIDCounter), encTotalPackets, encSeqNumber, packetData)
-                print self.transport.write(txData, address)
+                self.transport.write(txData, address)
                 startPos += self.msgSizeLimit
                 seqNumber += 1
         else:
