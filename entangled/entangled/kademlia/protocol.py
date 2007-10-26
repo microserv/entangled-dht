@@ -169,14 +169,14 @@ class KademliaProtocol(protocol.DatagramProtocol):
             if len(data) % self.msgSizeLimit > 0:
                 totalPackets += 1
             print ' -->totalpackets:', totalPackets, len(data), self.msgSizeLimit, len(data) / float(self.msgSizeLimit)
-            encTotalPackets = chr(totalPackets & 0xff00) + chr(totalPackets & 0xff)
+            encTotalPackets = chr(totalPackets >> 8) + chr(totalPackets & 0xff)
             seqNumber = 0
             startPos = 0
             while seqNumber < totalPackets:
                 reactor.iterate()
                 print ' --> sending seq:', seqNumber
                 packetData = data[startPos:startPos+self.msgSizeLimit]
-                encSeqNumber = chr(seqNumber & 0xff00) + chr(seqNumber & 0xff)
+                encSeqNumber = chr(seqNumber >> 8) + chr(seqNumber & 0xff)
                 txData = '%c%s%s%s' % (chr(self.udpTxIDCounter), encTotalPackets, encSeqNumber, packetData)
                 print self.transport.write(txData, address)
                 startPos += self.msgSizeLimit
