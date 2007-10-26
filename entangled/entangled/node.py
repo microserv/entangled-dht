@@ -124,6 +124,8 @@ class EntangledNode(kademlia.node.Node):
         if len(keywordKeys) > 0:
             # Start the "keyword store"-cycle
             storeNextKeyword()
+        else:
+            outerDf.callback(None)
             
         return outerDf
     
