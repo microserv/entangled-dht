@@ -59,18 +59,21 @@ class FakeNode(object):
         df.addErrback(handleError)
         return df
 
-class ClientDatagramProtocol(DatagramProtocol):
+class ClientDatagramProtocol(entangled.kademlia.protocol.KademliaProtocol):
     data = ''
     destination = ('127.0.0.1', 91824)
     
+    def __init__(self):
+        entangled.kademlia.protocol.KademliaProtocol.__init__(self, None)
+
     def startProtocol(self):
-        self.transport.connect(self.destination[0], self.destination[1])
+        #self.transport.connect(self.destination[0], self.destination[1])
         self.sendDatagram()
     
     def sendDatagram(self):
         if len(self.data):
-            self.transport.write(self.data)
-
+            self._send(self.data, self.destination)
+            
 #    def datagramReceived(self, datagram, host):
 #        print 'Datagram received: ', repr(datagram)
 #        self.sendDatagram()
@@ -194,7 +197,8 @@ class KademliaProtocolTest(unittest.TestCase):
         remoteContact = entangled.kademlia.contact.Contact('node2', '127.0.0.1', 91824, self.protocol)
         self.node.addContact(remoteContact)
         self.error = None
-        responseData = 10000 * '0'
+        #responseData = 8143 * '0'
+        responseData = 106385 * '0' # Threshold for 12 packets - make this 1 more and see what happens
         def handleError(f):
             if f.check((entangled.kademlia.protocol.TimeoutError)):
                 self.error = 'RPC from the following contact timed out: %s' % f.getErrorMessage()

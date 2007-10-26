@@ -32,3 +32,7 @@ dataExpireTimeout = 86400 # 24 hours
 # The interval in which the node should check its whether any buckets need refreshing,
 # or whether any data needs to be republished (in seconds)
 checkRefreshInterval = refreshTimeout/5
+
+# Max size of a single UDP datagram, in bytes. If a message is larger than this, it will
+# be spread accross several UDP packets.
+udpDatagramMaxSize = 8192 # 8 KB

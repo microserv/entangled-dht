@@ -24,11 +24,15 @@ class TimeoutError(Exception):
 
 class KademliaProtocol(protocol.DatagramProtocol):
     """ Implements all low-level network-related functions of a Kademlia node """
+    msgSizeLimit = constants.udpDatagramMaxSize-5
     def __init__(self, node, msgEncoder=encoding.Bencode(), msgTranslator=msgformat.DefaultFormat()):
         self._node = node
         self._encoder = msgEncoder
         self._translator = msgTranslator
         self._sentMessages = {}
+        self.udpTxIDCounter = 0 # Msgs sent by this protocol
+        self._partialMessages = {}
+        
         
     def sendRPC(self, contact, method, args, rawResponse=False):
         """ Sends an RPC to the specified contact
@@ -68,7 +72,8 @@ class KademliaProtocol(protocol.DatagramProtocol):
         # Set the RPC timeout timer
         timeoutCall = reactor.callLater(constants.rpcTimeout, self._msgTimeout, msg.id)
         # Transmit the data
-        self.transport.write(encodedMsg, (contact.address, contact.port))
+        #self.transport.write(encodedMsg, (contact.address, contact.port))
+        self._send(encodedMsg, (contact.address, contact.port))
         self._sentMessages[msg.id] = (contact.id, df, timeoutCall)
         return df
     
@@ -78,6 +83,34 @@ class KademliaProtocol(protocol.DatagramProtocol):
         @note: This is automatically called by Twisted when the protocol
                receives a UDP datagram
         """
+        print'rx dgram'
+        totalPackets = (ord(datagram[1]) << 8) | ord(datagram[2])
+        print '==totalpackets:', totalPackets
+        print '--from:', datagram[1:3].encode('hex')
+        if totalPackets > 1:
+            txID = datagram[0]
+            seqNumber = (ord(datagram[3]) << 8) | ord(datagram[4])
+            print 'seq', seqNumber
+            packetID = '%s%d%s' % (address[0], address[1], txID)
+            if packetID not in self._partialMessages:
+                self._partialMessages[packetID] = {}
+            self._partialMessages[packetID][seqNumber] = datagram[5:]
+            print 'len of collected keys:', len(self._partialMessages[packetID])
+            if len(self._partialMessages[packetID]) == totalPackets:
+                keys = self._partialMessages[packetID].keys()
+                keys.sort()
+                data = ''
+                for key in keys:
+                    data += self._partialMessages[packetID][key]
+                    datagram = data
+                del self._partialMessages[packetID]
+            else:
+                return
+        else:
+            datagram = datagram[5:]
+        
+        print 'LENGTH:',len(datagram)
+        
         msgPrimitive = self._encoder.decode(datagram)
         message = self._translator.fromPrimitive(msgPrimitive)
         
@@ -126,13 +159,42 @@ class KademliaProtocol(protocol.DatagramProtocol):
                 #TODO: we should probably do something with this...
                 pass
 
+    def _send(self, data, address):
+        """ Transmit the specified data over UDP, breaking it up into several
+        packets if necessary """
+        if len(data) > self.msgSizeLimit:
+            # We have to spread the data over multiple UDP datagrams, and provide sequencing information
+            # 1st byte is transmission id, bytes 2 & 3 are the total number of packets in this transmission, bytes 4 & 5 are the sequence number for this specific packet
+            totalPackets = len(data) / self.msgSizeLimit
+            if len(data) % self.msgSizeLimit > 0:
+                totalPackets += 1
+            print ' -->totalpackets:', totalPackets, len(data), self.msgSizeLimit, len(data) / float(self.msgSizeLimit)
+            encTotalPackets = chr(totalPackets & 0xff00) + chr(totalPackets & 0xff)
+            seqNumber = 0
+            startPos = 0
+            while seqNumber < totalPackets:
+                print ' --> sending seq:', seqNumber
+                packetData = data[startPos:startPos+self.msgSizeLimit]
+                encSeqNumber = chr(seqNumber & 0xff00) + chr(seqNumber & 0xff)
+                txData = '%c%s%s%s' % (chr(self.udpTxIDCounter), encTotalPackets, encSeqNumber, packetData)
+                print self.transport.write(txData, address)
+                startPos += self.msgSizeLimit
+                seqNumber += 1
+        else:
+            txData = '%c\x00\x01\x00\x00%s' % (chr(self.udpTxIDCounter), data)
+            self.transport.write(txData, address)
+        self.udpTxIDCounter += 1
+        if self.udpTxIDCounter > 255:
+            self.udpTxIDCounter = 0
+
     def _sendResponse(self, contact, rpcID, response):
         """ Send a RPC response to the specified contact
         """
         msg = msgtypes.ResponseMessage(rpcID, self._node.id, response)
         msgPrimitive = self._translator.toPrimitive(msg)
         encodedMsg = self._encoder.encode(msgPrimitive)
-        self.transport.write(encodedMsg, (contact.address, contact.port))
+        #self.transport.write(encodedMsg, (contact.address, contact.port))
+        self._send(encodedMsg, (contact.address, contact.port))
 
     def _sendError(self, contact, rpcID, exceptionType, exceptionMessage):
         """ Send an RPC error message to the specified contact
@@ -140,7 +202,8 @@ class KademliaProtocol(protocol.DatagramProtocol):
         msg = msgtypes.ErrorMessage(rpcID, self._node.id, exceptionType, exceptionMessage)
         msgPrimitive = self._translator.toPrimitive(msg)
         encodedMsg = self._encoder.encode(msgPrimitive)
-        self.transport.write(encodedMsg, (contact.address, contact.port))
+        #self.transport.write(encodedMsg, (contact.address, contact.port))
+        self._send(encodedMsg, (contact.address, contact.port))
 
     def _handleRPC(self, senderContact, rpcID, method, args):
         """ Executes a local function in response to an RPC request """
