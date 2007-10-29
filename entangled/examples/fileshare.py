@@ -223,6 +223,7 @@ class FileShareWindow(gtk.Window):
                 if file not in files and file not in ('.directory'):
                     files.append(file)
                     paths.append(entry[0])
+        files.sort()
         model = self.localTreeView.get_model()
         
         print 'files: ', len(files)
@@ -315,11 +316,12 @@ if __name__ == '__main__':
         knownNodes = None
 
     node = entangled.node.EntangledNode()
-    node.invalidKeywords.extend(('mp3', 'png', 'jpg'))
+    node.invalidKeywords.extend(('mp3', 'png', 'jpg', 'txt', 'ogg'))
+    node.keywordSplitters.extend(('-', '!'))
     window = FileShareWindow(node)
-    window.set_default_size(640, 480)
+    
     window.set_title('Entangled File Sharing Demo')
     window.present()
-    
+    window.set_default_size(640, 480)
     
     node.joinNetwork(int(sys.argv[1]), knownNodes)

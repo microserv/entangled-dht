@@ -24,6 +24,7 @@ class EntangledNode(kademlia.node.Node):
     def __init__(self, dataStore=None, routingTable=None, networkProtocol=None):
         kademlia.node.Node.__init__(self, dataStore, routingTable, networkProtocol)
         self.invalidKeywords = []
+        self.keywordSplitters = ['_', '.', '/']
   
     def searchForKeywords(self, keywords):
         """ The Entangled search operation (keyword-based)
@@ -32,9 +33,22 @@ class EntangledNode(kademlia.node.Node):
         keyword(s).
         """
         if type(keywords) == str:
+            for splitter in self.keywordSplitters:
+                keywords = keywords.replace(splitter, ' ')
             keywords = keywords.lower().split()
+
+        keyword = None
+        for testWord in keywords:
+            if testWord not in self.invalidKeywords:
+                keyword = testWord
+                break
+        if keyword == None:
+            df = defer.Deferred()
+            df.callback([])
+            return df
         
-        keyword = keywords[0]
+        keywords.remove(keyword)
+
         h = hashlib.sha1()
         h.update(keyword)
         key = h.digest()
@@ -43,20 +57,15 @@ class EntangledNode(kademlia.node.Node):
             if type(result) == dict:
                 # Value was found; this should be list of "real names" (not keys, in this implementation)
                 index = result[key]
-                filteredResults = index
+                filteredResults = list(index)
                 # We found values containing our first keyword; Now filter for the rest
                 for name in index:
-                    for kw in keywords[1:]:
-                        if name.find(kw) == -1:
+                    for kw in keywords:
+                        if name.lower().find(kw) == -1:
                             filteredResults.remove(name)
-                            break
-                #sourceListString = ''
-                #for name in filteredResults:
-                #    sourceListString += '%s\n' % name
-                #result = sourceListString[:-1]
+                index = filteredResults
             else:
                 # Value wasn't found
-                #result = ''
                 index = []
             return index
  
@@ -240,7 +249,7 @@ class EntangledNode(kademlia.node.Node):
         """ Create hash keys for the keywords contained in the specified text string """
         keywordKeys = []
         splitText = text.lower()
-        for splitter in ('_', '.', '/'):
+        for splitter in self.keywordSplitters:
             splitText = splitText.replace(splitter, ' ')
         for keyword in splitText.split():
             # Only consider keywords with 3 or more letters
