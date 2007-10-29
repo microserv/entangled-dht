@@ -11,6 +11,7 @@ import UserDict
 import sqlite3
 import cPickle as pickle
 import time
+import os
 
 
 class DataStore(UserDict.DictMixin):
@@ -115,7 +116,8 @@ class SQLiteDataStore(DataStore):
         @type dbFile: str
         """
         self._db = sqlite3.connect(dbFile)
-        self._db.execute('create table data(key, value, lastPublished, originallyPublished, originalPublisherID)')
+        if dbFile == ':memory:' or not os.path.exists(dbFile):
+            self._db.execute('create table data(key, value, lastPublished, originallyPublished, originalPublisherID)')
         self._cursor = self._db.cursor()
     
     def keys(self):
