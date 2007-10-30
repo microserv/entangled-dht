@@ -115,8 +115,10 @@ class SQLiteDataStore(DataStore):
                        unspecified, an in-memory database is used.
         @type dbFile: str
         """
+        createDB = not os.path.exists(dbFile)
         self._db = sqlite3.connect(dbFile)
-        if dbFile == ':memory:' or not os.path.exists(dbFile):
+        self._db.isolation_level = None
+        if createDB:
             self._db.execute('create table data(key, value, lastPublished, originallyPublished, originalPublisherID)')
         self._cursor = self._db.cursor()
     
