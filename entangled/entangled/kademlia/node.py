@@ -600,9 +600,7 @@ class Node(object):
                  'closestNodes': self.findNode(self.id)}
         now = int(time.time())
         self._dataStore.setItem('nodeState', state, now, now, self.id)
-        print 'persisting...', self._dataStore.keys()
         
-    
     def _refreshNode(self):
         """ Periodically called to perform k-bucket refreshes and data
         replication/republishing as necessary """
