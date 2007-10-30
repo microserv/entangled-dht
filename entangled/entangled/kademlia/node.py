@@ -61,7 +61,16 @@ class Node(object):
             self._dataStore = datastore.DictDataStore()
         else:
             self._dataStore = dataStore
-        #self._pendingContactReplacements = {}
+            # Try to restore the node's state...
+            if 'nodeState' in self._dataStore.keys():
+                state = self._dataStore['nodeState']
+                self.id = state['id']
+                for contactTriple in state['closestNodes']:
+                    contact = Contact(contactTriple[0], contactTriple[1], contactTriple[2], self._protocol)
+                    self._routingTable.addContact(contact)
+    
+    def __del__(self):
+        self._persistState()
 
     def joinNetwork(self, udpPort=81172, knownNodeAddresses=None):
         """ Causes the Node to join the Kademlia network; this will execute
@@ -94,6 +103,7 @@ class Node(object):
 #        df.addCallback(getBucketAfterNeighbour)
 #        df.addCallback(self._refreshKBuckets)
         #protocol.reactor.callLater(10, self.printContacts)
+        df.addCallback(self._persistState)
         # Start refreshing k-buckets periodically, if necessary
         protocol.reactor.callLater(constants.checkRefreshInterval, self._refreshNode)
         protocol.reactor.run()
@@ -584,6 +594,14 @@ class Node(object):
 #        refreshNextKBucket()
 #        #print '_refreshKbuckets returning'
 #        return outerDf
+    
+    def _persistState(self, *args):
+        state = {'id': self.id,
+                 'closestNodes': self.findNode(self.id)}
+        now = int(time.time())
+        self._dataStore.setItem('nodeState', state, now, now, self.id)
+        print 'persisting...', self._dataStore.keys()
+        
     
     def _refreshNode(self):
         """ Periodically called to perform k-bucket refreshes and data
