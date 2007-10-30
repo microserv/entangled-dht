@@ -61,6 +61,7 @@ class FakeNode(object):
 
 class ClientDatagramProtocol(entangled.kademlia.protocol.KademliaProtocol):
     data = ''
+    msgID = ''
     destination = ('127.0.0.1', 91824)
     
     def __init__(self):
@@ -72,7 +73,7 @@ class ClientDatagramProtocol(entangled.kademlia.protocol.KademliaProtocol):
     
     def sendDatagram(self):
         if len(self.data):
-            self._send(self.data, self.destination)
+            self._send(self.data, self.msgID, self.destination)
             
 #    def datagramReceived(self, datagram, host):
 #        print 'Datagram received: ', repr(datagram)
@@ -210,7 +211,7 @@ class KademliaProtocolTest(unittest.TestCase):
         # Publish the "local" node on the network    
         entangled.kademlia.protocol.reactor.listenUDP(91824, self.protocol)
         # ...and make it think it is waiting for a result from an RPC
-        msgID = 'abcdef123456'
+        msgID = 'abcdefghij1234567890'
         df = defer.Deferred()
         timeoutCall = entangled.kademlia.protocol.reactor.callLater(entangled.kademlia.constants.rpcTimeout, self.protocol._msgTimeout, msgID)
         self.protocol._sentMessages[msgID] = (remoteContact.id, df, timeoutCall)
@@ -220,6 +221,7 @@ class KademliaProtocolTest(unittest.TestCase):
         encodedMsg = self.protocol._encoder.encode(msgPrimitive)
         udpClient = ClientDatagramProtocol()
         udpClient.data = encodedMsg
+        udpClient.msgID = msgID
         entangled.kademlia.protocol.reactor.listenUDP(0, udpClient)
         df.addCallback(handleResult)
         df.addErrback(handleError)
