@@ -11,10 +11,11 @@ import entangled.kademlia.datastore
 
 import hashlib
 
-class DataStoreTest(unittest.TestCase):
+class DictDataStoreTest(unittest.TestCase):
     """ Basic tests case for the reference DataStore API and implementation """
     def setUp(self):
-        self.ds = entangled.kademlia.datastore.DictDataStore()
+        if not hasattr(self, 'ds'):
+            self.ds = entangled.kademlia.datastore.DictDataStore()
         h = hashlib.sha1()
         h.update('g')
         hashKey = h.digest()
@@ -30,15 +31,15 @@ class DataStoreTest(unittest.TestCase):
         for key, value in self.cases:
             try:
                 now = time.time()
-                self.ds.setItem(key, value, now, 'node1', now)
+                self.ds.setItem(key, value, now, now, 'node1')
             except Exception:
                 import traceback
                 self.fail('Failed writing the following data: key: "%s", data: "%s"\n  The error was: %s:' % (key, value, traceback.format_exc(5)))
-            
+        
         # Verify writing (test query ability)
         for key, value in self.cases:
             try:
-                self.failUnless(key in self.ds, 'Key "%s" not found in DataStore!' % key)
+                self.failUnless(key in self.ds.keys(), 'Key "%s" not found in DataStore!' % key)
             except Exception:
                 import traceback
                 self.fail('Failed verifying that the following key exists: "%s"\n  The error was: %s:' % (key, traceback.format_exc(5)))
@@ -49,12 +50,45 @@ class DataStoreTest(unittest.TestCase):
     
     def testNonExistentKeys(self):
         for key, value in self.cases:
-            self.failIf(key in self.ds, 'DataStore reports it has non-existent key: "%s"' % key) 
+            self.failIf(key in self.ds, 'DataStore reports it has non-existent key: "%s"' % key)
+            
+    def testReplace(self):
+        # First write with fake values
+        for key, value in self.cases:
+            try:
+                now = time.time()
+                self.ds.setItem(key, 'abc', now, now, 'node1')
+            except Exception:
+                import traceback
+                self.fail('Failed writing the following data: key: "%s", data: "%s"\n  The error was: %s:' % (key, value, traceback.format_exc(5)))
+        
+        # write this stuff a second time, with the real values
+        for key, value in self.cases:
+            try:
+                now = time.time()
+                self.ds.setItem(key, value, now, 'node1', now)
+            except Exception:
+                import traceback
+                self.fail('Failed writing the following data: key: "%s", data: "%s"\n  The error was: %s:' % (key, value, traceback.format_exc(5)))
+
+        self.failUnlessEqual(len(self.ds.keys()), len(self.cases), 'Values did not get overwritten properly; expected %d keys, got %d' % (len(self.cases), len(self.ds.keys())))
+        # Read back the data
+        for key, value in self.cases:
+            self.failUnlessEqual(self.ds[key], value, 'DataStore returned invalid data! Expected "%s", got "%s"' % (value, self.ds[key]))
+
+
+class SQLiteDataStoreTest(DictDataStoreTest):
+    def setUp(self):
+        self.ds = entangled.kademlia.datastore.SQLiteDataStore()
+        DictDataStoreTest.setUp(self)
+
 
 def suite():
     suite = unittest.TestSuite()
-    suite.addTest(unittest.makeSuite(DataStoreTest))
+    suite.addTest(unittest.makeSuite(DictDataStoreTest))
+    suite.addTest(unittest.makeSuite(SQLiteDataStoreTest))
     return suite
+
 
 if __name__ == '__main__':
     # If this module is executed from the commandline, run all its tests
