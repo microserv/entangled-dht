@@ -120,14 +120,14 @@ class SQLiteDataStore(DataStore):
         self._db.isolation_level = None
         self._db.text_factory = str
         if createDB:
-            self._db.execute('create table data(key, value, lastPublished, originallyPublished, originalPublisherID)')
+            self._db.execute('CREATE TABLE data(key, value, lastPublished, originallyPublished, originalPublisherID)')
         self._cursor = self._db.cursor()
     
     def keys(self):
         """ Return a list of the keys in this data store """
         keys = []
         try:
-            self._cursor.execute("select key from data")
+            self._cursor.execute("SELECT key FROM data")
             for row in self._cursor:
                 keys.append(row[0])
         finally:
@@ -155,11 +155,15 @@ class SQLiteDataStore(DataStore):
         return self._dbQuery(key, 'originallyPublished')
 
     def setItem(self, key, value, lastPublished, originallyPublished, originalPublisherID):
-        self._cursor.execute('insert into data(key, value, originalPublisherID, originallyPublished, lastPublished) values (?, ?, ?, ?, ?)', (key, buffer(pickle.dumps(value, pickle.HIGHEST_PROTOCOL)), lastPublished, originallyPublished, originalPublisherID))
-    
+        self._cursor.execute("select key from data where key=:reqKey", {'reqKey': key})
+        if self._cursor.fetchone() == None:
+            self._cursor.execute('INSERT INTO data(key, value, originalPublisherID, originallyPublished, lastPublished) VALUES (?, ?, ?, ?, ?)', (key, buffer(pickle.dumps(value, pickle.HIGHEST_PROTOCOL)), lastPublished, originallyPublished, originalPublisherID))
+        else:
+            self._cursor.execute('UPDATE data SET value=?, originalPublisherID=?, originallyPublished=?, lastPublished=? WHERE key=?', (buffer(pickle.dumps(value, pickle.HIGHEST_PROTOCOL)), lastPublished, originallyPublished, originalPublisherID, key))
+        
     def _dbQuery(self, key, columnName):
         try:
-            self._cursor.execute("select %s from data where key=:reqKey" % columnName, {'reqKey': key})
+            self._cursor.execute("SELECT %s FROM data WHERE key=:reqKey" % columnName, {'reqKey': key})
             row = self._cursor.fetchone()
             value = str(row[0])
         except TypeError:
@@ -171,4 +175,4 @@ class SQLiteDataStore(DataStore):
         return self._dbQuery(key, 'value')
 
     def __delitem__(self, key):
-        self._cursor.execute("delete from data where key=:reqKey", {'reqKey': key})
+        self._cursor.execute("DELETE FROM data WHERE key=:reqKey", {'reqKey': key})

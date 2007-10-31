@@ -20,11 +20,11 @@ class DictDataStoreTest(unittest.TestCase):
         h.update('g')
         hashKey = h.digest()
         self.cases = (('a', 'hello there\nthis is a test'),
-                     ('b', unicode('jasdklfjklsdj;f2352352ljklzsdlkjkasf\ndsjklafsd')),
-                     ('e', 123),
-                     ('f', [('this', 'is', 1), {'complex': 'data entry'}]),
-                     ('aMuchLongerKeyThanAnyOfThePreviousOnes', 'some data'),
-                     (hashKey, 'some data'))
+                      ('b', unicode('jasdklfjklsdj;f2352352ljklzsdlkjkasf\ndsjklafsd')),
+                      ('e', 123),
+                      ('f', [('this', 'is', 1), {'complex': 'data entry'}]),
+                      ('aMuchLongerKeyThanAnyOfThePreviousOnes', 'some data'),
+                      (hashKey, 'some data'))
     
     def testReadWrite(self):
         # Test write ability
@@ -75,6 +75,24 @@ class DictDataStoreTest(unittest.TestCase):
         # Read back the data
         for key, value in self.cases:
             self.failUnlessEqual(self.ds[key], value, 'DataStore returned invalid data! Expected "%s", got "%s"' % (value, self.ds[key]))
+
+    def testDelete(self):
+        # First write with fake values
+        for key, value in self.cases:
+            try:
+                now = time.time()
+                self.ds.setItem(key, 'abc', now, now, 'node1')
+            except Exception:
+                import traceback
+                self.fail('Failed writing the following data: key: "%s", data: "%s"\n  The error was: %s:' % (key, value, traceback.format_exc(5)))
+        
+        self.failUnlessEqual(len(self.ds.keys()), len(self.cases), 'Values did not get stored properly; expected %d keys, got %d' % (len(self.cases), len(self.ds.keys())))
+        
+        # Delete an item from the data
+        key, value == self.cases[0]
+        del self.ds[key]
+        self.failUnlessEqual(len(self.ds.keys()), len(self.cases)-1, 'Value was not deleted; expected %d keys, got %d' % (len(self.cases)-1, len(self.ds.keys())))
+        self.failIf(key in self.ds.keys(), 'Key was not deleted: %s' % key)
 
 
 class SQLiteDataStoreTest(DictDataStoreTest):
