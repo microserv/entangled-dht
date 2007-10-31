@@ -32,7 +32,7 @@ class KademliaProtocol(protocol.DatagramProtocol):
         self._sentMessages = {}
         #self.udpTxIDCounter = 0 # Msgs sent by this protocol
         self._partialMessages = {}
-        
+        self._partialMessagesProgress = {}
         
     def sendRPC(self, contact, method, args, rawResponse=False):
         """ Sends an RPC to the specified contact
@@ -236,7 +236,14 @@ class KademliaProtocol(protocol.DatagramProtocol):
             remoteContactID, df = self._sentMessages[messageID][0:2]
             if self._partialMessages.has_key(messageID):
                 # We are still receiving this message
-                #TODO: figure out if any progress has been made; if not, kill the message
+                # See if any progress has been made; if not, kill the message
+                if self._partialMessagesProgress.has_key(messageID):
+                    if len(self._partialMessagesProgress[messageID]) == len(self._partialMessages[messageID]):
+                        # No progress has been made
+                        del self._partialMessagesProgress[messageID]
+                        del self._partialMessages[messageID]
+                        df.errback(failure.Failure(TimeoutError(remoteContactID)))
+                        return
                 # Reset the RPC timeout timer
                 timeoutCall = reactor.callLater(constants.rpcTimeout, self._msgTimeout, messageID)
                 self._sentMessages[messageID] = (remoteContactID, df, timeoutCall)
