@@ -41,8 +41,9 @@ class KBucket(object):
         """
         if contact in self._contacts:
             # Move the existing contact to the end of the list
-            # TODO: maybe use the new contact (IP address may have changed, etc)
-            self._contacts.append( self._contacts.pop( self._contacts.index(contact) ) )
+            # - using the new contact to allow add-on data (e.g. optimization-specific stuff) to pe updated as well
+            self._contacts.remove(contact)
+            self._contacts.append(contact)
         elif len(self._contacts) < constants.k:
             self._contacts.append(contact)
         else:

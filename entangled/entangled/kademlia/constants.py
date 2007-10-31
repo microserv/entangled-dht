@@ -9,6 +9,8 @@
 
 """ This module defines the charaterizing constants of the Kademlia network """
 
+######### KADEMLIA CONSTANTS ###########
+
 # Small number Representing the degree of parallelism in network calls
 alpha = 3
 
@@ -28,6 +30,8 @@ replicateInterval = refreshTimeout
 # The time it takes for data to expire in the network; the original publisher of the data
 # will also republish the data at this time if it is still valid
 dataExpireTimeout = 86400 # 24 hours
+
+######## IMPLEMENTATION-SPECIFIC CONSTANTS ###########
 
 # The interval in which the node should check its whether any buckets need refreshing,
 # or whether any data needs to be republished (in seconds)
