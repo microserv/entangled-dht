@@ -8,16 +8,18 @@
 import pygtk
 pygtk.require('2.0')
 import os, sys, gtk, gobject
-import entangled.node
+
 from twisted.internet import gtk2reactor
 import entangled.kademlia.protocol
 entangled.kademlia.protocol.reactor = gtk2reactor.install()
-
 
 from twisted.internet import defer
 from twisted.internet.protocol import Protocol, ServerFactory, ClientCreator
 
 import hashlib
+
+import entangled.node
+from entangled.kademlia.datastore import SQLiteDataStore
 
 
 class FileServer(Protocol):
@@ -68,13 +70,20 @@ class FileGetter(Protocol):
             f.close()
         fd.destroy()
 
+
 class FileShareWindow(gtk.Window):
     def __init__(self, node):
         gtk.Window.__init__(self)
         
+        self.set_default_size(640, 480)
+        
+        self.trayIcon = gtk.status_icon_new_from_stock(gtk.STOCK_FIND)
+        self.trayIcon.connect('popup-menu', self._trayIconRightClick)
+        self.trayIcon.connect('activate', self._trayIconClick)
+        
         self.node = node
         
-        self.connect("delete-event", gtk.main_quit)
+        self.connect("delete-event", self._hideWindow)
         
         # Layout the window
         highLevelVbox = gtk.VBox(spacing=3)
@@ -178,6 +187,33 @@ class FileShareWindow(gtk.Window):
         self._setupTCPNetworking()
 
         self.show_all()
+
+    def _showTrayIconMenu(self, event_button, event_time, icon):
+        menu = gtk.Menu()
+        if not self.get_property('visible'):
+            showItem = gtk.MenuItem('Show main window')
+            showItem.connect('activate', self._trayIconClick)
+            showItem.show()
+            menu.append(showItem)
+        item = gtk.MenuItem('Quit')
+        item.connect('activate', gtk.main_quit)
+        item.show()
+        menu.append(item)
+        menu.popup(None, None, gtk.status_icon_position_menu, event_button,event_time, icon)
+
+    def _trayIconRightClick(self, icon, event_button, event_time):
+        self._showTrayIconMenu(event_button, event_time, icon)
+
+    def _trayIconClick(self, icon):
+        if self.get_property('visible'):
+            self.hide_all()
+        else:
+            self.show_all()
+            
+
+    def _hideWindow(self, *args):
+        self.hide_all()
+        return True
 
     def _setupTCPNetworking(self):
         # Next lines are magic:
@@ -315,13 +351,17 @@ if __name__ == '__main__':
     else:
         knownNodes = None
 
-    node = entangled.node.EntangledNode()
+    try:
+        os.makedirs(os.path.expanduser('~')+'/.entangled')
+    except OSError:
+        pass
+    dataStore = SQLiteDataStore(os.path.expanduser('~')+'/.entangled/fileshare.sqlite')
+    node = entangled.node.EntangledNode(dataStore=dataStore)
     node.invalidKeywords.extend(('mp3', 'png', 'jpg', 'txt', 'ogg'))
     node.keywordSplitters.extend(('-', '!'))
     window = FileShareWindow(node)
     
     window.set_title('Entangled File Sharing Demo')
     window.present()
-    window.set_default_size(640, 480)
     
     node.joinNetwork(int(sys.argv[1]), knownNodes)
