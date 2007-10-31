@@ -118,6 +118,7 @@ class SQLiteDataStore(DataStore):
         createDB = not os.path.exists(dbFile)
         self._db = sqlite3.connect(dbFile)
         self._db.isolation_level = None
+        self._db.text_factory = str
         if createDB:
             self._db.execute('create table data(key, value, lastPublished, originallyPublished, originalPublisherID)')
         self._cursor = self._db.cursor()
