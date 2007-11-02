@@ -136,7 +136,7 @@ class SQLiteDataStore(DataStore):
     def lastPublished(self, key):
         """ Get the time the C{(key, value)} pair identified by C{key}
         was last published """
-        return self._dbQuery(key, 'lastPublished')
+        return int(self._dbQuery(key, 'lastPublished'))
     
     def originalPublisherID(self, key):
         """ Get the original publisher of the data's node ID
@@ -152,16 +152,16 @@ class SQLiteDataStore(DataStore):
     def originalPublishTime(self, key):
         """ Get the time the C{(key, value)} pair identified by C{key}
         was originally published """
-        return self._dbQuery(key, 'originallyPublished')
+        return int(self._dbQuery(key, 'originallyPublished'))
 
     def setItem(self, key, value, lastPublished, originallyPublished, originalPublisherID):
         self._cursor.execute("select key from data where key=:reqKey", {'reqKey': key})
         if self._cursor.fetchone() == None:
-            self._cursor.execute('INSERT INTO data(key, value, originalPublisherID, originallyPublished, lastPublished) VALUES (?, ?, ?, ?, ?)', (key, buffer(pickle.dumps(value, pickle.HIGHEST_PROTOCOL)), lastPublished, originallyPublished, originalPublisherID))
+            self._cursor.execute('INSERT INTO data(key, value, lastPublished, originallyPublished, originalPublisherID) VALUES (?, ?, ?, ?, ?)', (key, buffer(pickle.dumps(value, pickle.HIGHEST_PROTOCOL)), lastPublished, originallyPublished, originalPublisherID))
         else:
-            self._cursor.execute('UPDATE data SET value=?, originalPublisherID=?, originallyPublished=?, lastPublished=? WHERE key=?', (buffer(pickle.dumps(value, pickle.HIGHEST_PROTOCOL)), lastPublished, originallyPublished, originalPublisherID, key))
+            self._cursor.execute('UPDATE data SET value=?, lastPublished=?, originallyPublished=?, originalPublisherID=? WHERE key=?', (buffer(pickle.dumps(value, pickle.HIGHEST_PROTOCOL)), lastPublished, originallyPublished, originalPublisherID, key))
         
-    def _dbQuery(self, key, columnName):
+    def _dbQuery(self, key, columnName, unpickle=False):
         try:
             self._cursor.execute("SELECT %s FROM data WHERE key=:reqKey" % columnName, {'reqKey': key})
             row = self._cursor.fetchone()
@@ -169,10 +169,13 @@ class SQLiteDataStore(DataStore):
         except TypeError:
             raise KeyError, key
         else:
-            return pickle.loads(value)
+            if unpickle:
+                return pickle.loads(value)
+            else:
+                return value
     
     def __getitem__(self, key):
-        return self._dbQuery(key, 'value')
+        return self._dbQuery(key, 'value', unpickle=True)
 
     def __delitem__(self, key):
         self._cursor.execute("DELETE FROM data WHERE key=:reqKey", {'reqKey': key})
