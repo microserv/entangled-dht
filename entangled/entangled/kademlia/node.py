@@ -49,7 +49,7 @@ class Node(object):
         #for i in range(160):
         #    self._buckets.append(kbucket.KBucket())
         if routingTable == None:
-            self._routingTable = routingtable.TreeRoutingTable(self.id)
+            self._routingTable = routingtable.OptimizedTreeRoutingTable(self.id)
         
         # Initialize this node's network access mechanisms
         if networkProtocol == None:
