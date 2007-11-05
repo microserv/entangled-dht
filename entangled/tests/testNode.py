@@ -87,18 +87,19 @@ class NodeContactTest(unittest.TestCase):
         self.failIf(contact in closestNodes, 'Node added itself as a contact')
 
 
-class NodeLookupTest(unittest.TestCase):
-    """ Test case for the Node class's iterative node lookup algorithm """
-    def setUp(self):
-        import entangled.kademlia.contact
-        self.node = entangled.kademlia.node.Node()
-        self.remoteNodes = []
-        for i in range(10):
-            remoteNode = entangled.kademlia.node.Node()
-            remoteContact = entangled.kademlia.contact.Contact(remoteNode.id, '127.0.0.1', 91827+i, self.node._protocol)
-            self.remoteNodes.append(remoteNode)
-            self.node.addContact(remoteContact)
-
+#class NodeLookupTest(unittest.TestCase):
+#    """ Test case for the Node class's iterative node lookup algorithm """
+#    def setUp(self):
+#        import entangled.kademlia.contact
+#        self.node = entangled.kademlia.node.Node()
+#        self.remoteNodes = []
+#        for i in range(10):
+#            remoteNode = entangled.kademlia.node.Node()
+#           remoteContact = entangled.kademlia.contact.Contact(remoteNode.id, '127.0.0.1', 91827+i, self.node._protocol)
+#           self.remoteNodes.append(remoteNode)
+#            self.node.addContact(remoteContact)
+            
+            
 #    def testIterativeFindNode(self):
 #        """ Ugly brute-force test to see if the iterative node lookup algorithm runs without failing """
 #        import entangled.kademlia.protocol
@@ -108,6 +109,119 @@ class NodeLookupTest(unittest.TestCase):
 #        df = self.node.iterativeFindNode(self.node.id)
 #        df.addBoth(lambda _: entangled.kademlia.protocol.reactor.stop())
 #        entangled.kademlia.protocol.reactor.run()
+
+from twisted.internet import protocol, defer, selectreactor
+from entangled.kademlia.msgtypes import ResponseMessage
+class FakeRPCProtocol(protocol.DatagramProtocol):
+    def __init__(self):
+        self.reactor = selectreactor.SelectReactor() 
+        self.testResponse = None
+        self.network = None
+        
+   
+    def createNetwork(self, contactNetwork):
+         """ set up a list of contacts together with their closest contacts
+         @param contactNetwork: a sequence of tuples, each containing a contact together with its closest 
+         contacts:  C{(<contact>, <closest contact 1, ...,closest contact n>)}
+         """
+         self.network = contactNetwork
+    
+    def setTestResponse(self, response):
+        self.testResponse = response
+    
+    """ Fake RPC protocol; allows entangled.kademlia.contact.Contact objects to "send" RPCs """
+    def sendRPC(self, contact, method, args, rawResponse=False):
+        # get the specific contacts closest contacts
+        closestContacts = []
+        #print "contact" + contact.id
+        for contactTuple in self.network:
+            #print contactTuple[0].id
+            if contact == contactTuple[0]:
+                # get the list of closest contacts for this contact
+                closestContactsList = contactTuple[1]
+                #print "contact" + contact.id
+            
+        # Pack the closest contacts into a ResponseMessage 
+        for closeContact in closestContactsList:
+            #print closeContact.id
+            closestContacts.append((closeContact.id, closeContact.address, closeContact.port))
+        message = ResponseMessage("rpcId", contact, closestContacts)
+                
+        df = defer.Deferred()
+        df.callback((message,(contact.address, contact.port)))
+        return df
+
+class NodeLookupTest(unittest.TestCase):
+    """ Test case for the Node class's iterative node lookup algorithm """
+       
+    def setUp(self):
+                        
+        # create a fake protocol to imitate communication with other nodes
+        self._protocol = FakeRPCProtocol()
+        # create the node to be tested in isolation
+        self.node = entangled.kademlia.node.Node(None, None, self._protocol)
+        
+        self.updPort = 81172
+        
+        self.contactsAmount = 80
+        # set the node ID manually for testing
+        self.node.id = '12345678901234567800'
+       
+        # create 160 bit node ID's for test purposes
+        self.testNodeIDs = []
+        idNum = long(self.node.id.encode('hex'), 16)
+        for i in range(self.contactsAmount):
+            # create the testNodeIDs in ascending order, away from the actual node ID, with regards to the distance metric 
+            self.testNodeIDs.append(idNum + i + 1)
+        
+        # generate contacts
+        self.contacts = []
+        for i in range(self.contactsAmount):
+            contact = entangled.kademlia.contact.Contact(str(self.testNodeIDs[i]), "127.0.0.1", self.updPort + i + 1, self._protocol)
+            self.contacts.append(contact)
+        
+    def testNodeBootStrap(self):
+        """ Test initiation of kademlia node with prior known addresses """
+        # create a dummy reactor 
+        self._protocol.reactor.listenUDP(self.updPort, self._protocol)
+        
+       
+        # create the network of contacts in format: (contact, closest contacts)        
+        contactNetwork = ((self.contacts[0], self.contacts[8:15]),
+                          (self.contacts[1], self.contacts[16:23]),
+                          (self.contacts[2], self.contacts[24:31]),
+                          (self.contacts[3], self.contacts[32:39]),
+                          (self.contacts[4], self.contacts[40:47]),
+                          (self.contacts[5], self.contacts[48:55]),
+                          (self.contacts[6], self.contacts[56:63]),
+                          (self.contacts[7], self.contacts[64:71]),
+                          (self.contacts[24], self.contacts[0:7]),
+                          (self.contacts[25], self.contacts[8:15]),
+                          (self.contacts[26], self.contacts[16:23]))
+        
+        self._protocol.createNetwork(contactNetwork)
+        
+        
+        def showClosest(activeContacts):
+            for contact in activeContacts:
+                print contact.id
+        
+             
+        # call the iterative find loop to initialise the network
+        df = self.node._iterativeFind(self.node.id, self.contacts[24:27])
+        
+        # ensure that the reactor is stopped
+        #df.addBoth(lambda _: entangled.kademlia.protocol.reactor.stop())
+        
+        
+        #self._protocol.setTestResponse("response")
+        
+        df.addCallback(showClosest)
+        
+        
+        
+        
+#        self._protocol.reactor.run()
 
 
 def suite():
