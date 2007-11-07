@@ -491,6 +491,8 @@ class Node(object):
                 prevClosestNode[0] = activeContacts[0]
             contactedNow = 0
             shortlist.sort(lambda firstContact, secondContact, targetKey=key: cmp(self._routingTable.distance(firstContact.id, targetKey), self._routingTable.distance(secondContact.id, targetKey)))      
+            # Store the current shortList length before contacting other nodes
+            prevShortlistLength = len(shortlist)
             for contact in shortlist:
                 if contact.id not in alreadyContacted:
                     activeProbes.append(contact.id)
@@ -508,6 +510,10 @@ class Node(object):
                 # Schedule the next iteration if there are any active calls (Kademlia uses loose parallelism)
                 call = protocol.reactor.callLater(constants.iterativeLookupDelay, searchIteration)
                 pendingIterationCalls.append(call)
+            # Check for a quick contact response that made an update to the shortList
+            elif prevShortlistLength < len(shortlist):
+                # Ensure that the closest contacts are taken from the updated shortList
+                searchIteration()
             else:
                 #print '++++++++++++++ DONE (logically) +++++++++++++\n\n'
                 # If no probes were sent, there will not be any improvement, so we're done
