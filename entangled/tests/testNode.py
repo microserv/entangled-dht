@@ -110,6 +110,8 @@ class NodeContactTest(unittest.TestCase):
 #        df.addBoth(lambda _: entangled.kademlia.protocol.reactor.stop())
 #        entangled.kademlia.protocol.reactor.run()
 
+
+""" Some scaffolding for the NodeLookupTest class. Allows isolated node testing by simulating remote node responses"""
 from twisted.internet import protocol, defer, selectreactor
 from entangled.kademlia.msgtypes import ResponseMessage
 class FakeRPCProtocol(protocol.DatagramProtocol):
@@ -125,43 +127,53 @@ class FakeRPCProtocol(protocol.DatagramProtocol):
          contacts:  C{(<contact>, <closest contact 1, ...,closest contact n>)}
          """
          self.network = contactNetwork
-    
-    def setTestResponse(self, response):
-        self.testResponse = response
-    
+       
     """ Fake RPC protocol; allows entangled.kademlia.contact.Contact objects to "send" RPCs """
     def sendRPC(self, contact, method, args, rawResponse=False):
-        # get the specific contacts closest contacts
-        closestContacts = []
-        #print "contact" + contact.id
-        for contactTuple in self.network:
-            #print contactTuple[0].id
-            if contact == contactTuple[0]:
-                # get the list of closest contacts for this contact
-                closestContactsList = contactTuple[1]
-                #print "contact" + contact.id
-            
-        # Pack the closest contacts into a ResponseMessage 
-        for closeContact in closestContactsList:
-            #print closeContact.id
-            closestContacts.append((closeContact.id, closeContact.address, closeContact.port))
-        message = ResponseMessage("rpcId", contact, closestContacts)
+        #print method + " " + str(args)
+        
+        if method == "findNode":        
+            # get the specific contacts closest contacts
+            closestContacts = []
+            #print "contact" + contact.id
+            for contactTuple in self.network:
+                #print contactTuple[0].id
+                if contact == contactTuple[0]:
+                    # get the list of closest contacts for this contact
+                    closestContactsList = contactTuple[1]
+                    #print "contact" + contact.id
                 
-        df = defer.Deferred()
-        df.callback((message,(contact.address, contact.port)))
-        return df
+            # Pack the closest contacts into a ResponseMessage 
+            for closeContact in closestContactsList:
+                #print closeContact.id
+                closestContacts.append((closeContact.id, closeContact.address, closeContact.port))
+            message = ResponseMessage("rpcId", contact, closestContacts)
+                    
+            df = defer.Deferred()
+            df.callback((message,(contact.address, contact.port)))
+            return df
+        elif method == "findValue":
+            print "findValue"
+            
 
 class NodeLookupTest(unittest.TestCase):
-    """ Test case for the Node class's iterative node lookup algorithm """
+    """ Test case for the Node class's iterativeFind node lookup algorithm """
        
     def setUp(self):
                         
         # create a fake protocol to imitate communication with other nodes
         self._protocol = FakeRPCProtocol()
+        
+        # Note: The reactor is never started for this test. All deferred calls run sequentially, 
+        # since there is no asynchronous network communication
+        
         # create the node to be tested in isolation
         self.node = entangled.kademlia.node.Node(None, None, self._protocol)
         
-        self.updPort = 81172
+        self.updPort = 81173
+        
+        # create a dummy reactor 
+        #self._protocol.reactor.listenUDP(self.updPort, self._protocol)
         
         self.contactsAmount = 80
         # set the node ID manually for testing
@@ -179,13 +191,7 @@ class NodeLookupTest(unittest.TestCase):
         for i in range(self.contactsAmount):
             contact = entangled.kademlia.contact.Contact(str(self.testNodeIDs[i]), "127.0.0.1", self.updPort + i + 1, self._protocol)
             self.contacts.append(contact)
-        
-    def testNodeBootStrap(self):
-        """ Test initiation of kademlia node with prior known addresses """
-        # create a dummy reactor 
-        self._protocol.reactor.listenUDP(self.updPort, self._protocol)
-        
-       
+            
         # create the network of contacts in format: (contact, closest contacts)        
         contactNetwork = ((self.contacts[0], self.contacts[8:15]),
                           (self.contacts[1], self.contacts[16:23]),
@@ -195,34 +201,88 @@ class NodeLookupTest(unittest.TestCase):
                           (self.contacts[5], self.contacts[48:55]),
                           (self.contacts[6], self.contacts[56:63]),
                           (self.contacts[7], self.contacts[64:71]),
-                          (self.contacts[24], self.contacts[0:7]),
-                          (self.contacts[25], self.contacts[8:15]),
-                          (self.contacts[26], self.contacts[16:23]))
+                          (self.contacts[8], self.contacts[72:79]),
+                          (self.contacts[50], self.contacts[0:7]),
+                          (self.contacts[51], self.contacts[8:15]),
+                          (self.contacts[52], self.contacts[16:23]))
         
         self._protocol.createNetwork(contactNetwork)
         
+    def testNodeBootStrap(self):
+        """  Test bootstrap with the closest possible contacts """
+                     
+        df = self.node._iterativeFind(self.node.id, self.contacts[0:9])
+        # Set the expected result
+        expectedResult = []   
+        for item in self.contacts[0:9]:
+                expectedResult.append(item.id)
+                #print item.id
         
-        def showClosest(activeContacts):
-            for contact in activeContacts:
-                print contact.id
+        # Get the result from the deferred
+        activeContacts = df.result
         
-             
-        # call the iterative find loop to initialise the network
-        df = self.node._iterativeFind(self.node.id, self.contacts[24:27])
+        # Check the length of the active contacts
+        self.failUnlessEqual(activeContacts.__len__(), expectedResult.__len__(), \
+                                 "More active contacts should exist, there should be %d contacts" %expectedResult.__len__())
+            
         
-        # ensure that the reactor is stopped
-        #df.addBoth(lambda _: entangled.kademlia.protocol.reactor.stop())
+        # Check that the received active contacts are the same as the input contacts
+        self.failUnlessEqual(activeContacts, expectedResult, \
+                                 "Active should only contain the closest possible contacts which were used as input for the boostrap")
         
+              
+    def testFindingCloserNodes(self):
+        """ Test discovery of closer contacts""" 
+               
+        # Use input contacts that have knowledge of closer contacts,
+        df = self.node._iterativeFind(self.node.id, self.contacts[50:53])
+        #set the expected result
+        expectedResult = []   
+        #print "############ Expected Active contacts #################"
+        for item in self.contacts[0:9]:
+                expectedResult.append(item.id)
+                #print item.id
+        #print "#######################################################"
         
-        #self._protocol.setTestResponse("response")
+        # Get the result from the deferred
+        activeContacts = df.result
         
-        df.addCallback(showClosest)
+        #print "!!!!!!!!!!! Receieved Active contacts !!!!!!!!!!!!!!!"
+        #for item in activeContacts:
+        #    print item.id
+        #print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
         
+        # Check the length of the active contacts
+        self.failUnlessEqual(activeContacts.__len__(), expectedResult.__len__(), \
+                                 "Length of received active contacts not as expected, should be %d" %expectedResult.__len__())
+            
         
+        # Check that the received active contacts are now closer to this node
+        self.failUnlessEqual(activeContacts, expectedResult, \
+                                 "Active contacts should now only contain the closest possible contacts")
+               
         
+    def testFindValue(self):
+        # create test values using the contact ID as the key
+        """testValues = ({self.contacts[0].id: "some test data"},
+                      {self.contacts[1].id: "some more test data"},
+                      {self.contacts[8].id: "and more data"}
+                      )
         
-#        self._protocol.reactor.run()
-
+              
+        # create the network of contacts in format: (contact, closest contacts, values)        
+        contactNetwork = ((self.contacts[0], self.contacts[8:15], testValues[0]),
+                          (self.contacts[1], self.contacts[16:23], testValues[1]),
+                          (self.contacts[2], self.contacts[24:31], testValues[2]))
+        
+        self._protocol.createNetwork(contactNetwork)
+        
+        # Initialise the node with some known contacts
+        self.node._iterativeFind(self.node.id, self.contacts[0:3])
+        
+        self.node.iterativeFindValue(testValues[0].keys()[0])"""
+           
+                      
 
 def suite():
     suite = unittest.TestSuite()
