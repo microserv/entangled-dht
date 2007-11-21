@@ -265,6 +265,7 @@ class FileShareWindow(gtk.Window):
         print 'files: ', len(files)
         def publishNextFile(result=None):
             if len(files) > 0:
+                entangled.kademlia.protocol.reactor.iterate()
                 filename = files.pop()
                 iter = model.append()
                 print '-->',filename

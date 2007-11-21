@@ -82,6 +82,7 @@ class Node(object):
                                    C{(<ip address>, (udp port>)}
         @type knownNodeAddresses: tuple
         """
+        
         # Prepare the underlying Kademlia protocol
         protocol.reactor.listenUDP(udpPort, self._protocol)
         # Create temporary contact information for the list of addresses of known nodes
@@ -92,6 +93,11 @@ class Node(object):
                 bootstrapContacts.append(contact)
         else:
             bootstrapContacts = None
+        
+        # Add this node to its own routing table; this allows it to function properly without a full Kademlia network
+        selfContact = Contact(self.id, '127.0.0.1', udpPort, self._protocol)
+        self._routingTable.addContact(selfContact)
+            
         # Initiate the Kademlia joining sequence - perform a search for this node's own ID
         df = self._iterativeFind(self.id, bootstrapContacts)
 #        #TODO: Refresh all k-buckets further away than this node's closest neighbour
@@ -140,6 +146,7 @@ class Node(object):
             originalPublisherID = self.id
         # Prepare a callback for doing "STORE" RPC calls
         def executeStoreRPCs(nodes):
+            #if nodes != None:
             for contact in nodes:
                 contact.store(key, value, originalPublisherID, age)
             return nodes
@@ -302,11 +309,12 @@ class Node(object):
         @rtype: list
         """
         # Get the sender's ID (if any)
-        if '_rpcNodeID' in kwargs:
-            rpcSenderID = kwargs['_rpcNodeID']
-        else:
-            rpcSenderID = None
-        contacts = self._routingTable.findCloseNodes(key, constants.k, rpcSenderID)
+        #if '_rpcNodeID' in kwargs:
+        #    rpcSenderID = kwargs['_rpcNodeID']
+        #else:
+        #    rpcSenderID = None
+        #contacts = self._routingTable.findCloseNodes(key, constants.k, rpcSenderID)
+        contacts = self._routingTable.findCloseNodes(key, constants.k)
         contactTriples = []
         for contact in contacts:
             contactTriples.append( (contact.id, contact.address, contact.port) )
@@ -407,7 +415,7 @@ class Node(object):
             responseMsg = responseTuple[0]
             originAddress = responseTuple[1] # tuple: (ip adress, udp port)
             # Make sure the responding node is valid, and abort the operation if it isn't
-            if responseMsg.nodeID in activeContacts or responseMsg.nodeID == self.id:
+            if responseMsg.nodeID in activeContacts:# or responseMsg.nodeID == self.id:
                 return responseMsg.nodeID
             
             # Mark this node as active
