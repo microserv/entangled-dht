@@ -9,7 +9,8 @@
 
 from twisted.internet import protocol, defer
 from twisted.python import failure
-import twisted.internet.selectreactor
+import twisted.internet.reactor
+#import twisted.internet.selectreactor
 
 import constants
 import encoding
@@ -17,7 +18,8 @@ import msgtypes
 import msgformat
 import contact
 
-reactor = twisted.internet.selectreactor.SelectReactor()
+#reactor = twisted.internet.selectreactor.SelectReactor()
+reactor = twisted.internet.reactor
 
 class TimeoutError(Exception):
     """ Raised when a RPC times out """

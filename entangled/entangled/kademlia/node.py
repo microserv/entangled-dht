@@ -15,6 +15,7 @@ import constants
 import routingtable
 import datastore
 import protocol
+import twisted.internet.reactor
 from contact import Contact
 
 def rpcmethod(func):
@@ -84,7 +85,7 @@ class Node(object):
         """
         
         # Prepare the underlying Kademlia protocol
-        protocol.reactor.listenUDP(udpPort, self._protocol)
+        twisted.internet.reactor.listenUDP(udpPort, self._protocol)
         # Create temporary contact information for the list of addresses of known nodes
         if knownNodeAddresses != None:
             bootstrapContacts = []
@@ -111,8 +112,8 @@ class Node(object):
         #protocol.reactor.callLater(10, self.printContacts)
         df.addCallback(self._persistState)
         # Start refreshing k-buckets periodically, if necessary
-        protocol.reactor.callLater(constants.checkRefreshInterval, self._refreshNode)
-        protocol.reactor.run()
+        twisted.internet.reactor.callLater(constants.checkRefreshInterval, self._refreshNode)
+        #twisted.internet.reactor.run()
 
 
     def printContacts(self):
@@ -121,7 +122,7 @@ class Node(object):
             for contact in self._routingTable._buckets[i]._contacts:
                 print contact
         print '=================================='
-        protocol.reactor.callLater(10, self.printContacts)
+        twisted.internet.reactor.callLater(10, self.printContacts)
 
 
     def iterativeStore(self, key, value, originalPublisherID=None, age=0):
@@ -516,7 +517,7 @@ class Node(object):
             if len(activeProbes) > slowNodeCount[0]:
                 #print '----------- scheduling next call -------------'
                 # Schedule the next iteration if there are any active calls (Kademlia uses loose parallelism)
-                call = protocol.reactor.callLater(constants.iterativeLookupDelay, searchIteration)
+                call = twisted.internet.reactor.callLater(constants.iterativeLookupDelay, searchIteration)
                 pendingIterationCalls.append(call)
             # Check for a quick contact response that made an update to the shortList
             elif prevShortlistLength < len(shortlist):
@@ -621,7 +622,7 @@ class Node(object):
         #print 'refreshNode called'
         df = self._refreshRoutingTable()
         df.addCallback(self._republishData)
-        protocol.reactor.callLater(constants.checkRefreshInterval, self._refreshNode)
+        twisted.internet.reactor.callLater(constants.checkRefreshInterval, self._refreshNode)
         
     def _refreshRoutingTable(self):
         nodeIDs = self._routingTable.getRefreshList(0, False)
