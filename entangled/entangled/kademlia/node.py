@@ -45,6 +45,11 @@ class Node(object):
         @type networkProtocol: entangled.kademlia.protocol.KademliaProtocol
         """
         self.id = self._generateID()
+        
+        # This will contain a deferred created when joining the network, to enable publishing/retrieving information from
+        # the DHT as soon as the node is part of the network (add callbacks to this deferred if scheduling such operations
+        # before the node has finished joining the network)
+        self._joinDeferred = None
         # Create k-buckets (for storing contacts)
         #self._buckets = []
         #for i in range(160):
@@ -100,7 +105,7 @@ class Node(object):
         self._routingTable.addContact(selfContact)
             
         # Initiate the Kademlia joining sequence - perform a search for this node's own ID
-        df = self._iterativeFind(self.id, bootstrapContacts)
+        self._joinDeferred = self._iterativeFind(self.id, bootstrapContacts)
 #        #TODO: Refresh all k-buckets further away than this node's closest neighbour
 #        def getBucketAfterNeighbour(*args):
 #            for i in range(160):
@@ -110,7 +115,7 @@ class Node(object):
 #        df.addCallback(getBucketAfterNeighbour)
 #        df.addCallback(self._refreshKBuckets)
         #protocol.reactor.callLater(10, self.printContacts)
-        df.addCallback(self._persistState)
+        self._joinDeferred.addCallback(self._persistState)
         # Start refreshing k-buckets periodically, if necessary
         twisted.internet.reactor.callLater(constants.checkRefreshInterval, self._refreshNode)
         #twisted.internet.reactor.run()
