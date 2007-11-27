@@ -11,8 +11,9 @@ import sys, gtk, gobject, cairo
 import math
 
 from twisted.internet import gtk2reactor
-import entangled.kademlia.protocol
-entangled.kademlia.protocol.reactor = gtk2reactor.install()
+#import entangled.kademlia.protocol
+gtk2reactor.install()
+import twisted.internet.reactor
 import entangled.dtuple
 
 import entangled.kademlia.contact
@@ -746,3 +747,5 @@ if __name__ == '__main__':
     window.present()
     
     node.joinNetwork(int(sys.argv[1]), knownNodes)
+    twisted.internet.reactor.run()
+
