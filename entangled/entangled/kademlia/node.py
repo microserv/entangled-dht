@@ -127,7 +127,7 @@ class Node(object):
             for contact in self._routingTable._buckets[i]._contacts:
                 print contact
         print '=================================='
-        twisted.internet.reactor.callLater(10, self.printContacts)
+        #twisted.internet.reactor.callLater(10, self.printContacts)
 
 
     def iterativeStore(self, key, value, originalPublisherID=None, age=0):
@@ -388,7 +388,11 @@ class Node(object):
             findValue = False
         shortlist = []
         if startupShortlist == None:
-            shortlist = self._routingTable.findCloseNodes(key, constants.alpha)
+            if self.id in shortlist:
+                # This saves some time
+                shortlist = self._routingTable.findCloseNodes(key, constants.k)
+            else:
+                shortlist = self._routingTable.findCloseNodes(key, constants.alpha)
             if key != self.id:
                 # Update the "last accessed" timestamp for the appropriate k-bucket
                 self._routingTable.touchKBucket(key)
@@ -415,6 +419,16 @@ class Node(object):
         findValueResult = {}
         slowNodeCount = [0]
         
+        # This saves some time
+        if self.id in shortlist:
+            def addSelfToActiveContacts(selfContact):
+                #activeProbes.pop()
+                activeContacts.append(selfContact)
+            df = self.findContact(self.id)
+            df.addCallback(addSelfToActiveContacts)
+            #activeProbes.append(self.id)
+            alreadyContacted.append(self.id)
+ 
         def extendShortlist(responseTuple):
             """ @type responseMsg: kademlia.msgtypes.ResponseMessage """
             # The "raw response" tuple contains the response message, and the originating address info

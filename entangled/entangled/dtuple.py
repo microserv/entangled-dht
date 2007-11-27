@@ -43,7 +43,6 @@ class DistributedTupleSpacePeer(EntangledNode):
         listenerKey = []
         
         def publishToTupleSpace(result):
-            print 'publishToTupleSpace called, result:', result
             if result != 'get':
                 # Extract "keywords" from the tuple
                 subtupleKeys = self._keywordHashesFromTuple(dTuple)
@@ -94,9 +93,14 @@ class DistributedTupleSpacePeer(EntangledNode):
                 tupleValue = cPickle.dumps(dTuple)
                 h.update('tuple:' + tupleValue)
                 mainKey = h.digest()
-                self.iterativeStore(mainKey, tupleValue)
+                def putToSearchIndexes(result):
+                    df = self._addToInvertedIndexes(subtupleKeys, mainKey)
+                    return df
+                
+                df = self.iterativeStore(mainKey, tupleValue)
+                df.addCallback(putToSearchIndexes)
                 # ...and now make it searchable, by writing the subtuples
-                df = self._addToInvertedIndexes(subtupleKeys, mainKey)
+                #df = self._addToInvertedIndexes(subtupleKeys, mainKey)
             return df
 
         df = self._findKeyForTemplate(dTuple, True)
