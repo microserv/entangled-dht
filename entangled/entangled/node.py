@@ -124,7 +124,11 @@ class EntangledNode(kademlia.node.Node):
             if kwIndex[0] < len(keywordKeys):
                 kwKey = keywordKeys[kwIndex[0]]
                 # We use the find algorithm directly so that kademlia does not replicate the un-updated inverted index
-                df = self._iterativeFind(kwKey, rpc='findValue')
+                if kwKey in self._dataStore:
+                    df = defer.Deferred()
+                    df.callback({kwKey: self._dataStore[kwKey]})
+                else:
+                    df = self._iterativeFind(kwKey, rpc='findValue')
                 df.addCallback(addToInvertedIndex)
             else:
                 # We're done. Let the caller of the parent method know
@@ -193,7 +197,11 @@ class EntangledNode(kademlia.node.Node):
             if kwIndex[0] < len(keywordKeys):
                 kwKey = keywordKeys[kwIndex[0]]
                 # We use the find algorithm directly so that kademlia does not replicate the un-updated inverted index
-                df = self._iterativeFind(kwKey, rpc='findValue')
+                if kwKey in self._dataStore:
+                    df = defer.Deferred()
+                    df.callback({kwKey: self._dataStore[kwKey]})
+                else:
+                    df = self._iterativeFind(kwKey, rpc='findValue')
                 df.addCallback(removeFromInvertedIndex)
             else:
                 # We're done. Let the caller of the parent method know
