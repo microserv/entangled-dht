@@ -103,25 +103,10 @@ class EntangledViewer(gtk.DrawingArea):
         
         blips = []
         kbucket = {}
-        selfContact = None
         for i in range(len(self.node._routingTable._buckets)):
-            for contact in self.node._routingTable._buckets[i]._contacts:
-                if contact.id != self.node.id:
-                    blips.append(contact)
-                    kbucket[contact.id] = i
-                else:
-                    selfContact = contact
-        
-        # Print the details for our own node...
-        if selfContact != None:
-            cr.set_source_rgb(0.2,0.2,0.2)
-            cr.set_font_size(12.0)
-            cr.move_to(w-s, h+s+15)
-            cr.set_font_size(12.0)
-            cr.show_text(selfContact.address)
-            cr.move_to(w-s, h+s+30)
-            cr.show_text(str(selfContact.port))
-        
+            for contact in self.node._routingTable._buckets[i]._contacts:    
+                blips.append(contact)
+                kbucket[contact.id] = i
         # ...and now circles for all the other nodes
         if len(blips) == 0:
             spacing = 180

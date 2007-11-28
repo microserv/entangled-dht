@@ -368,9 +368,8 @@ class OptimizedTreeRoutingTable(TreeRoutingTable):
         @param contact: The contact to add to this node's k-buckets
         @type contact: kademlia.contact.Contact
         """
-        #if contact.id == self._parentNodeID:
-        #    print 'self contact!', contact
-        #    return
+        if contact.id == self._parentNodeID:
+            return
 
         # Initialize/reset the "successively failed RPC" counter
         contact.failedRPCs = 0

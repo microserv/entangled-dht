@@ -88,7 +88,6 @@ class Node(object):
                                    C{(<ip address>, (udp port>)}
         @type knownNodeAddresses: tuple
         """
-        
         # Prepare the underlying Kademlia protocol
         twisted.internet.reactor.listenUDP(udpPort, self._protocol)
         # Create temporary contact information for the list of addresses of known nodes
@@ -99,11 +98,6 @@ class Node(object):
                 bootstrapContacts.append(contact)
         else:
             bootstrapContacts = None
-        
-        # Add this node to its own routing table; this allows it to function properly without a full Kademlia network
-        selfContact = Contact(self.id, '127.0.0.1', udpPort, self._protocol)
-        self._routingTable.addContact(selfContact)
-            
         # Initiate the Kademlia joining sequence - perform a search for this node's own ID
         self._joinDeferred = self._iterativeFind(self.id, bootstrapContacts)
 #        #TODO: Refresh all k-buckets further away than this node's closest neighbour
@@ -152,7 +146,6 @@ class Node(object):
             originalPublisherID = self.id
         # Prepare a callback for doing "STORE" RPC calls
         def executeStoreRPCs(nodes):
-            #if nodes != None:
             for contact in nodes:
                 contact.store(key, value, originalPublisherID, age)
             return nodes
@@ -315,12 +308,11 @@ class Node(object):
         @rtype: list
         """
         # Get the sender's ID (if any)
-        #if '_rpcNodeID' in kwargs:
-        #    rpcSenderID = kwargs['_rpcNodeID']
-        #else:
-        #    rpcSenderID = None
-        #contacts = self._routingTable.findCloseNodes(key, constants.k, rpcSenderID)
-        contacts = self._routingTable.findCloseNodes(key, constants.k)
+        if '_rpcNodeID' in kwargs:
+            rpcSenderID = kwargs['_rpcNodeID']
+        else:
+            rpcSenderID = None
+        contacts = self._routingTable.findCloseNodes(key, constants.k, rpcSenderID)
         contactTriples = []
         for contact in contacts:
             contactTriples.append( (contact.id, contact.address, contact.port) )
@@ -388,11 +380,7 @@ class Node(object):
             findValue = False
         shortlist = []
         if startupShortlist == None:
-            if self.id in shortlist:
-                # This saves some time
-                shortlist = self._routingTable.findCloseNodes(key, constants.k)
-            else:
-                shortlist = self._routingTable.findCloseNodes(key, constants.alpha)
+            shortlist = self._routingTable.findCloseNodes(key, constants.alpha)
             if key != self.id:
                 # Update the "last accessed" timestamp for the appropriate k-bucket
                 self._routingTable.touchKBucket(key)
@@ -419,23 +407,13 @@ class Node(object):
         findValueResult = {}
         slowNodeCount = [0]
         
-        # This saves some time
-        if self.id in shortlist:
-            def addSelfToActiveContacts(selfContact):
-                #activeProbes.pop()
-                activeContacts.append(selfContact)
-            df = self.findContact(self.id)
-            df.addCallback(addSelfToActiveContacts)
-            #activeProbes.append(self.id)
-            alreadyContacted.append(self.id)
- 
         def extendShortlist(responseTuple):
             """ @type responseMsg: kademlia.msgtypes.ResponseMessage """
             # The "raw response" tuple contains the response message, and the originating address info
             responseMsg = responseTuple[0]
             originAddress = responseTuple[1] # tuple: (ip adress, udp port)
             # Make sure the responding node is valid, and abort the operation if it isn't
-            if responseMsg.nodeID in activeContacts:# or responseMsg.nodeID == self.id:
+            if responseMsg.nodeID in activeContacts or responseMsg.nodeID == self.id:
                 return responseMsg.nodeID
             
             # Mark this node as active
