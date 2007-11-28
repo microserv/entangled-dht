@@ -146,6 +146,15 @@ class Node(object):
             originalPublisherID = self.id
         # Prepare a callback for doing "STORE" RPC calls
         def executeStoreRPCs(nodes):
+            if len(nodes) >= constants.k:
+                # If this node itself is closer to the key than the last (furthest) node in the list,
+                # we should store the value at ourselves as well
+                if self._routingTable.distance(key, self.id) < self._routingTable.distance(key, nodes[-1].id):
+                    nodes.pop()
+                    self.store(key, value, originalPublisherID=self.id)
+            else:
+                self.store(key, value, originalPublisherID=self.id)
+
             for contact in nodes:
                 contact.store(key, value, originalPublisherID, age)
             return nodes
@@ -200,11 +209,24 @@ class Node(object):
                     # ...and store the key/value pair 
                     contact = result['closestNodeNoValue']
                     contact.store(key, result[key])
+                outerDf.callback(result)
             else:
                 # The value wasn't found, but a list of contacts was returned
-                #TODO: should we do something with this? -since our own routing table would have been updated automatically...
-                pass
-            outerDf.callback(result)
+                # Now, see if we have the value (it might seem wasteful to search on the network
+                # first, but it ensures that all values are properly propagated through the
+                # network
+                if key in self._dataStore:
+                    # Ok, we have the value locally, so use that
+                    value = self._dataStore[key]
+                    # Send this value to the closest node without it
+                    if len(result) > 0:
+                        contact = result[0]
+                        contact.store(key, value)
+                    outerDf.callback({key: value})
+                else:
+                    # Ok, value does not exist in DHT at all
+                    outerDf.callback(result)
+
         # Execute the search
         df = self._iterativeFind(key, rpc='findValue')
         df.addCallback(checkResult)
@@ -387,7 +409,7 @@ class Node(object):
             if len(shortlist) == 0:
                 # This node doesn't know of any other nodes
                 fakeDf = defer.Deferred()
-                fakeDf.callback(None)
+                fakeDf.callback([])
                 return fakeDf
         else:
             # This is used during the bootstrap process; node ID's are most probably fake
