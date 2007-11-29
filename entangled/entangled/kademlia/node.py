@@ -533,16 +533,17 @@ class Node(object):
                     contactedNow += 1
                 if contactedNow == constants.alpha:
                     break
-            if len(activeProbes) > slowNodeCount[0]:
+            if len(activeProbes) > slowNodeCount[0] \
+                or (len(shortlist) < constants.k and len(activeContacts) < len(shortlist) and len(activeProbes) > 0):
                 #print '----------- scheduling next call -------------'
                 # Schedule the next iteration if there are any active calls (Kademlia uses loose parallelism)
-                call = twisted.internet.reactor.callLater(constants.iterativeLookupDelay, searchIteration)
+                call = twisted.internet.reactor.callLater(constants.iterativeLookupDelay, searchIteration) #IGNORE:E1101
                 pendingIterationCalls.append(call)
             # Check for a quick contact response that made an update to the shortList
             elif prevShortlistLength < len(shortlist):
                 # Ensure that the closest contacts are taken from the updated shortList
                 searchIteration()
-            else:
+            else: 
                 #print '++++++++++++++ DONE (logically) +++++++++++++\n\n'
                 # If no probes were sent, there will not be any improvement, so we're done
                 outerDf.callback(activeContacts)
