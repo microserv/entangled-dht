@@ -24,7 +24,7 @@ def rpcmethod(func):
     return func
 
 class Node(object):
-    def __init__(self, dataStore=None, routingTable=None, networkProtocol=None):
+    def __init__(self, udpPort=4000, dataStore=None, routingTable=None, networkProtocol=None):
         """
         @param dataStore: The data store to use. This must be class inheriting
                           from the C{DataStore} interface (or providing the
@@ -45,7 +45,7 @@ class Node(object):
         @type networkProtocol: entangled.kademlia.protocol.KademliaProtocol
         """
         self.id = self._generateID()
-        
+        self.port = udpPort
         # This will contain a deferred created when joining the network, to enable publishing/retrieving information from
         # the DHT as soon as the node is part of the network (add callbacks to this deferred if scheduling such operations
         # before the node has finished joining the network)
@@ -78,7 +78,7 @@ class Node(object):
     def __del__(self):
         self._persistState()
 
-    def joinNetwork(self, udpPort=81172, knownNodeAddresses=None):
+    def joinNetwork(self, knownNodeAddresses=None):
         """ Causes the Node to join the Kademlia network; this will execute
         the Twisted reactor's main loop
         
@@ -89,7 +89,7 @@ class Node(object):
         @type knownNodeAddresses: tuple
         """
         # Prepare the underlying Kademlia protocol
-        twisted.internet.reactor.listenUDP(udpPort, self._protocol)
+        twisted.internet.reactor.listenUDP(self.port, self._protocol) #IGNORE:E1101
         # Create temporary contact information for the list of addresses of known nodes
         if knownNodeAddresses != None:
             bootstrapContacts = []
@@ -111,7 +111,7 @@ class Node(object):
         #protocol.reactor.callLater(10, self.printContacts)
         self._joinDeferred.addCallback(self._persistState)
         # Start refreshing k-buckets periodically, if necessary
-        twisted.internet.reactor.callLater(constants.checkRefreshInterval, self._refreshNode)
+        twisted.internet.reactor.callLater(constants.checkRefreshInterval, self._refreshNode) #IGNORE:E1101
         #twisted.internet.reactor.run()
 
 
@@ -678,23 +678,23 @@ class Node(object):
                 if now - self._dataStore.lastPublished(key) >= constants.replicateInterval:
                     self.iterativeStore(key, self._dataStore[key], originalPublisherID, age)
 
-import sys
+
 if __name__ == '__main__':
+    import sys
     if len(sys.argv) < 2:
         print 'Usage:\n%s UDP_PORT  [KNOWN_NODE_IP  KNOWN_NODE_PORT]' % sys.argv[0]
         print 'or:\n%s UDP_PORT  [FILE_WITH_KNOWN_NODES]' % sys.argv[0]
         print '\nIf a file is specified, it should containg one IP address and UDP port\nper line, seperated by a space.'
         sys.exit(1)
     try:
-        int(sys.argv[1])
+        usePort = int(sys.argv[1])
     except ValueError:
         print '\nUDP_PORT must be an integer value.\n'
         print 'Usage:\n%s UDP_PORT  [KNOWN_NODE_IP  KNOWN_NODE_PORT]' % sys.argv[0]
         print 'or:\n%s UDP_PORT  [FILE_WITH_KNOWN_NODES]' % sys.argv[0]
         print '\nIf a file is specified, it should contain one IP address and UDP port\nper line, seperated by a space.'
         sys.exit(1)
-    
-    node = Node()
+
     if len(sys.argv) == 4:
         knownNodes = [(sys.argv[2], int(sys.argv[3]))]
     elif len(sys.argv) == 3:
@@ -707,4 +707,7 @@ if __name__ == '__main__':
             knownNodes.append((ipAddress, int(udpPort)))
     else:
         knownNodes = None
-    node.joinNetwork(int(sys.argv[1]), knownNodes)
+
+    node = Node( udpPort=usePort )
+    node.joinNetwork(knownNodes)
+    twisted.internet.reactor.run()

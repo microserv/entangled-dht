@@ -21,8 +21,8 @@ class EntangledNode(kademlia.node.Node):
     This is basically a Kademlia node, but with a few more (non-standard, but
     useful) RPCs defined.
     """
-    def __init__(self, dataStore=None, routingTable=None, networkProtocol=None):
-        kademlia.node.Node.__init__(self, dataStore, routingTable, networkProtocol)
+    def __init__(self, udpPort=4000, dataStore=None, routingTable=None, networkProtocol=None):
+        kademlia.node.Node.__init__(self, udpPort, dataStore, routingTable, networkProtocol)
         self.invalidKeywords = []
         self.keywordSplitters = ['_', '.', '/']
   
@@ -268,8 +268,9 @@ class EntangledNode(kademlia.node.Node):
                 keywordKeys.append(key)
         return keywordKeys
 
-import sys
+
 if __name__ == '__main__':
+    import sys
     if len(sys.argv) < 2:
         print 'Usage:\n%s UDP_PORT  [KNOWN_NODE_IP  KNOWN_NODE_PORT]' % sys.argv[0]
         print 'or:\n%s UDP_PORT  [FILE_WITH_KNOWN_NODES]' % sys.argv[0]
@@ -283,8 +284,7 @@ if __name__ == '__main__':
         print 'or:\n%s UDP_PORT  [FILE_WITH_KNOWN_NODES]' % sys.argv[0]
         print '\nIf a file is specified, it should contain one IP address and UDP port\nper line, seperated by a space.'
         sys.exit(1)
-    
-    node = EntangledNode()
+
     if len(sys.argv) == 4:
         knownNodes = [(sys.argv[2], int(sys.argv[3]))]
     elif len(sys.argv) == 3:
@@ -297,4 +297,7 @@ if __name__ == '__main__':
             knownNodes.append((ipAddress, int(udpPort)))
     else:
         knownNodes = None
-    node.joinNetwork(int(sys.argv[1]), knownNodes)
+
+    node = EntangledNode( udpPort=int(sys.argv[1]) )
+    node.joinNetwork(knownNodes)
+    twisted.internet.reactor.run()

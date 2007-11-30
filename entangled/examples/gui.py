@@ -722,7 +722,7 @@ if __name__ == '__main__':
     else:
         knownNodes = None
 
-    node = entangled.dtuple.DistributedTupleSpacePeer()
+    node = entangled.dtuple.DistributedTupleSpacePeer( udpPort=int(sys.argv[1]) )
     
     window = EntangledViewerWindow(node)
 
@@ -731,6 +731,5 @@ if __name__ == '__main__':
 
     window.present()
     
-    node.joinNetwork(int(sys.argv[1]), knownNodes)
+    node.joinNetwork(knownNodes)
     twisted.internet.reactor.run()
-
