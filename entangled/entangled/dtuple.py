@@ -23,7 +23,7 @@ class DistributedTupleSpacePeer(EntangledNode):
         self._blockingGetRequests = {}
         self._blockingReadRequests = {}
 
-    def put(self, dTuple):
+    def put(self, dTuple, originalPublisherID=None):
         """ Produces a tuple, and writes it into tuple space
         
         @note: This method is generally called "out" in tuple space literature,
@@ -51,7 +51,7 @@ class DistributedTupleSpacePeer(EntangledNode):
                 tupleValue = cPickle.dumps(dTuple)
                 h.update('tuple:' + tupleValue)
                 mainKey = h.digest()
-                self.iterativeStore(mainKey, tupleValue)
+                self.iterativeStore(mainKey, tupleValue, originalPublisherID=originalPublisherID)
                 # ...and now make it searchable, by writing the subtuples
                 df = self._addToInvertedIndexes(subtupleKeys, mainKey)
                 return df
@@ -97,7 +97,7 @@ class DistributedTupleSpacePeer(EntangledNode):
                     df = self._addToInvertedIndexes(subtupleKeys, mainKey)
                     return df
                 
-                df = self.iterativeStore(mainKey, tupleValue)
+                df = self.iterativeStore(mainKey, tupleValue, originalPublisherID=originalPublisherID)
                 df.addCallback(putToSearchIndexes)
                 # ...and now make it searchable, by writing the subtuples
                 #df = self._addToInvertedIndexes(subtupleKeys, mainKey)
@@ -228,7 +228,11 @@ class DistributedTupleSpacePeer(EntangledNode):
             else:
                 mainTupleKey.append(tupleKey)
                 # We use the find algorithm directly so that kademlia does not replicate the key
-                _df = self._iterativeFind(tupleKey, rpc='findValue')
+                if tupleKey in self._dataStore:
+                    _df = defer.Deferred()
+                    _df.callback({tupleKey: self._dataStore[tupleKey]})
+                else:
+                    _df = self._iterativeFind(tupleKey, rpc='findValue')
                 _df.addCallback(returnTuple)
           
         def returnTuple(value):
