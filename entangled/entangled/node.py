@@ -25,7 +25,7 @@ class EntangledNode(kademlia.node.Node):
         kademlia.node.Node.__init__(self, udpPort, dataStore, routingTable, networkProtocol)
         self.invalidKeywords = []
         self.keywordSplitters = ['_', '.', '/']
-  
+
     def searchForKeywords(self, keywords):
         """ The Entangled search operation (keyword-based)
         
@@ -72,8 +72,7 @@ class EntangledNode(kademlia.node.Node):
         df = self.iterativeFindValue(key)
         df.addCallback(checkResult)
         return df
-        
-        
+
     def publishData(self, name, data):
         """ The Entangled high-level data publishing operation
         
@@ -98,7 +97,7 @@ class EntangledNode(kademlia.node.Node):
         # Update the appropriate inverted indexes
         df = self._addToInvertedIndexes(keywordKeys, name)
         return df
-    
+
     def _addToInvertedIndexes(self, keywordKeys, indexLink):
         # Prepare a deferred result for this operation
         outerDf = defer.Deferred()
@@ -118,7 +117,7 @@ class EntangledNode(kademlia.node.Node):
                 index = [indexLink]
             df = self.iterativeStore(kwKey, index)
             df.addCallback(storeNextKeyword)
-        
+
         def storeNextKeyword(results=None):
             kwIndex[0] += 1
             if kwIndex[0] < len(keywordKeys):
@@ -133,15 +132,15 @@ class EntangledNode(kademlia.node.Node):
             else:
                 # We're done. Let the caller of the parent method know
                 outerDf.callback(None)
-             
+
         if len(keywordKeys) > 0:
             # Start the "keyword store"-cycle
             storeNextKeyword()
         else:
             outerDf.callback(None)
-            
+
         return outerDf
-    
+
     def removeData(self, name):
         """ The Entangled high-level data removal (delete) operation
         
@@ -210,7 +209,7 @@ class EntangledNode(kademlia.node.Node):
         if len(keywordKeys) > 0:
             # Start the "keyword store"-cycle
             findNextKeyword()
-            
+
         return outerDf
 
     def iterativeDelete(self, key):
@@ -270,7 +269,9 @@ class EntangledNode(kademlia.node.Node):
 
 
 if __name__ == '__main__':
-    import sys
+    import twisted.internet.reactor
+    from kademlia.datastore import SQLiteDataStore
+    import sys, os
     if len(sys.argv) < 2:
         print 'Usage:\n%s UDP_PORT  [KNOWN_NODE_IP  KNOWN_NODE_PORT]' % sys.argv[0]
         print 'or:\n%s UDP_PORT  [FILE_WITH_KNOWN_NODES]' % sys.argv[0]
@@ -298,6 +299,8 @@ if __name__ == '__main__':
     else:
         knownNodes = None
 
-    node = EntangledNode( udpPort=int(sys.argv[1]) )
+    os.remove('/tmp/dbFile%s.db' % sys.argv[1])
+    dataStore = SQLiteDataStore(dbFile = '/tmp/dbFile%s.db' % sys.argv[1])
+    node = EntangledNode( udpPort=int(sys.argv[1]), dataStore=dataStore )
     node.joinNetwork(knownNodes)
     twisted.internet.reactor.run()
