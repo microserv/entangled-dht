@@ -10,7 +10,6 @@
 from twisted.internet import protocol, defer
 from twisted.python import failure
 import twisted.internet.reactor
-#import twisted.internet.selectreactor
 
 import constants
 import encoding
@@ -18,7 +17,6 @@ import msgtypes
 import msgformat
 import contact
 
-#reactor = twisted.internet.selectreactor.SelectReactor()
 reactor = twisted.internet.reactor
 
 class TimeoutError(Exception):
@@ -32,10 +30,9 @@ class KademliaProtocol(protocol.DatagramProtocol):
         self._encoder = msgEncoder
         self._translator = msgTranslator
         self._sentMessages = {}
-        #self.udpTxIDCounter = 0 # Msgs sent by this protocol
         self._partialMessages = {}
         self._partialMessagesProgress = {}
-        
+
     def sendRPC(self, contact, method, args, rawResponse=False):
         """ Sends an RPC to the specified contact
         
@@ -66,7 +63,7 @@ class KademliaProtocol(protocol.DatagramProtocol):
         msg = msgtypes.RequestMessage(self._node.id, method, args)
         msgPrimitive = self._translator.toPrimitive(msg)
         encodedMsg = self._encoder.encode(msgPrimitive)
-            
+
         df = defer.Deferred()
         if rawResponse:
             df._rpcRawResponse = True
@@ -74,11 +71,10 @@ class KademliaProtocol(protocol.DatagramProtocol):
         # Set the RPC timeout timer
         timeoutCall = reactor.callLater(constants.rpcTimeout, self._msgTimeout, msg.id)
         # Transmit the data
-        #self.transport.write(encodedMsg, (contact.address, contact.port))
         self._send(encodedMsg, msg.id, (contact.address, contact.port))
         self._sentMessages[msg.id] = (contact.id, df, timeoutCall)
         return df
-    
+
     def datagramReceived(self, datagram, address):
         """ Handles and parses incoming RPC messages (and responses)
         
@@ -92,7 +88,6 @@ class KademliaProtocol(protocol.DatagramProtocol):
             if msgID not in self._partialMessages:
                 self._partialMessages[msgID] = {}
             self._partialMessages[msgID][seqNumber] = datagram[26:]
-            #print '   <--', len(datagram[26:])
             if len(self._partialMessages[msgID]) == totalPackets:
                 keys = self._partialMessages[msgID].keys()
                 keys.sort()
@@ -103,12 +98,11 @@ class KademliaProtocol(protocol.DatagramProtocol):
                 del self._partialMessages[msgID]
             else:
                 return
-        #print '<===', len(datagram)
         msgPrimitive = self._encoder.decode(datagram)
         message = self._translator.fromPrimitive(msgPrimitive)
-        
+
         remoteContact = contact.Contact(message.nodeID, address[0], address[1], self)
-        # Refresh the remote node's details in the local node's k-buckets    
+        # Refresh the remote node's details in the local node's k-buckets
         self._node.addContact(remoteContact)
 
         if isinstance(message, msgtypes.RequestMessage):
@@ -121,7 +115,7 @@ class KademliaProtocol(protocol.DatagramProtocol):
                 df, timeoutCall = self._sentMessages[message.id][1:3]
                 timeoutCall.cancel()
                 del self._sentMessages[message.id]
-                
+
                 if hasattr(df, '_rpcRawResponse'):
                     # The RPC requested that the raw response message and originating address be returned; do not interpret it
                     df.callback((message, address))
@@ -156,7 +150,6 @@ class KademliaProtocol(protocol.DatagramProtocol):
         """ Transmit the specified data over UDP, breaking it up into several
         packets if necessary """
         if len(data) > self.msgSizeLimit:
-            #print '==========>',len(data)
             # We have to spread the data over multiple UDP datagrams, and provide sequencing information
             # 1st byte is transmission id, bytes 2 & 3 are the total number of packets in this transmission, bytes 4 & 5 are the sequence number for this specific packet
             totalPackets = len(data) / self.msgSizeLimit
@@ -165,16 +158,11 @@ class KademliaProtocol(protocol.DatagramProtocol):
             encTotalPackets = chr(totalPackets >> 8) + chr(totalPackets & 0xff)
             seqNumber = 0
             startPos = 0
-            #print 'totalPackets:', totalPackets
-            #print data[0:30]
             while seqNumber < totalPackets:
                 reactor.iterate()
                 packetData = data[startPos:startPos+self.msgSizeLimit]
                 encSeqNumber = chr(seqNumber >> 8) + chr(seqNumber & 0xff)
-                #print '   --->', len(packetData)
                 txData = '\x00%s%s%s\x00%s' % (encTotalPackets, encSeqNumber, rpcID, packetData)
-                #print '================\n',txData[0:30]
-                
                 self.transport.write(txData, address)
                 startPos += self.msgSizeLimit
                 seqNumber += 1
@@ -187,7 +175,6 @@ class KademliaProtocol(protocol.DatagramProtocol):
         msg = msgtypes.ResponseMessage(rpcID, self._node.id, response)
         msgPrimitive = self._translator.toPrimitive(msg)
         encodedMsg = self._encoder.encode(msgPrimitive)
-        #self.transport.write(encodedMsg, (contact.address, contact.port))
         self._send(encodedMsg, rpcID, (contact.address, contact.port))
 
     def _sendError(self, contact, rpcID, exceptionType, exceptionMessage):
@@ -196,7 +183,6 @@ class KademliaProtocol(protocol.DatagramProtocol):
         msg = msgtypes.ErrorMessage(rpcID, self._node.id, exceptionType, exceptionMessage)
         msgPrimitive = self._translator.toPrimitive(msg)
         encodedMsg = self._encoder.encode(msgPrimitive)
-        #self.transport.write(encodedMsg, (contact.address, contact.port))
         self._send(encodedMsg, rpcID, (contact.address, contact.port))
 
     def _handleRPC(self, senderContact, rpcID, method, args):
@@ -204,14 +190,14 @@ class KademliaProtocol(protocol.DatagramProtocol):
         # Set up the deferred callchain
         def handleError(f):
             self._sendError(senderContact, rpcID, f.type, f.getErrorMessage())
-            
+
         def handleResult(result):
             self._sendResponse(senderContact, rpcID, result)
-        
+
         df = defer.Deferred()
         df.addCallback(handleResult)
         df.addErrback(handleError)
-        
+
         # Execute the RPC
         func = getattr(self._node, method, None)
         if callable(func) and hasattr(func, 'rpcmethod'):
