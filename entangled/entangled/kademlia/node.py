@@ -56,7 +56,7 @@ class Node(object):
         #    self._buckets.append(kbucket.KBucket())
         if routingTable == None:
             self._routingTable = routingtable.OptimizedTreeRoutingTable(self.id)
-        
+
         # Initialize this node's network access mechanisms
         if networkProtocol == None:
             self._protocol = protocol.KademliaProtocol(self)
@@ -68,13 +68,13 @@ class Node(object):
         else:
             self._dataStore = dataStore
             # Try to restore the node's state...
-            if 'nodeState' in self._dataStore.keys():
+            if 'nodeState' in self._dataStore:
                 state = self._dataStore['nodeState']
                 self.id = state['id']
                 for contactTriple in state['closestNodes']:
                     contact = Contact(contactTriple[0], contactTriple[1], contactTriple[2], self._protocol)
                     self._routingTable.addContact(contact)
-    
+
     def __del__(self):
         self._persistState()
 
@@ -142,19 +142,20 @@ class Node(object):
                     different nodes.
         @type age: int
         """
+        #print '      iterativeStore called'
         if originalPublisherID == None:
             originalPublisherID = self.id
         # Prepare a callback for doing "STORE" RPC calls
         def executeStoreRPCs(nodes):
+            #print '        .....execStoreRPCs called'
             if len(nodes) >= constants.k:
                 # If this node itself is closer to the key than the last (furthest) node in the list,
                 # we should store the value at ourselves as well
                 if self._routingTable.distance(key, self.id) < self._routingTable.distance(key, nodes[-1].id):
                     nodes.pop()
-                    self.store(key, value, originalPublisherID=self.id)
+                    self.store(key, value, originalPublisherID=originalPublisherID, age=age)
             else:
-                self.store(key, value, originalPublisherID=self.id)
-
+                self.store(key, value, originalPublisherID=originalPublisherID, age=age)
             for contact in nodes:
                 contact.store(key, value, originalPublisherID, age)
             return nodes
@@ -163,7 +164,7 @@ class Node(object):
         # ...and send them STORE RPCs as soon as they've been found
         df.addCallback(executeStoreRPCs)
         return df
-    
+
     def iterativeFindNode(self, key):
         """ The basic Kademlia node lookup operation
         
@@ -179,7 +180,7 @@ class Node(object):
         @rtype: twisted.internet.defer.Deferred
         """
         return self._iterativeFind(key)
-    
+
     def iterativeFindValue(self, key):
         """ The Kademlia search operation (deterministic)
         
@@ -206,7 +207,7 @@ class Node(object):
             if type(result) == dict:
                 # We have found the value; now see who was the closest contact without it...
                 if 'closestNodeNoValue' in result:
-                    # ...and store the key/value pair 
+                    # ...and store the key/value pair
                     contact = result['closestNodeNoValue']
                     contact.store(key, result[key])
                 outerDf.callback(result)
@@ -250,7 +251,7 @@ class Node(object):
         @type contactID: str
         """
         self._routingTable.removeContact(contactID)
-        
+
     def findContact(self, contactID):
         """
         @return: Contact object of remote node with the specified node ID
@@ -266,11 +267,11 @@ class Node(object):
                     contact = nodes[nodes.index(contactID)]
                     return contact
                 else:
-                    return None            
+                    return None
             df = self.iterativeFindNode(contactID)
             df.addCallback(parseResults)
         return df
-        
+
 
     @rpcmethod
     def ping(self):
@@ -303,7 +304,7 @@ class Node(object):
             rpcSenderID = kwargs['_rpcNodeID']
         else:
             rpcSenderID = None
-            
+
         if originalPublisherID == None:
             if rpcSenderID != None:
                 originalPublisherID = rpcSenderID
@@ -322,8 +323,8 @@ class Node(object):
         
         @param key: the 160-bit key (i.e. the node or value ID) to search for
         @type key: str
-        
-        @return: A list of contact triples closest to the specified key. 
+
+        @return: A list of contact triples closest to the specified key.
                  This method will return C{k} (or C{count}, if specified)
                  contacts if at all possible; it will only return fewer if the
                  node is returning all of the contacts that it knows of.
@@ -370,9 +371,9 @@ class Node(object):
         @rtype: str
         """
         hash = hashlib.sha1()
-        hash.update(str(random.getrandbits(255)))  
+        hash.update(str(random.getrandbits(255)))
         return hash.digest()
-    
+
     def _iterativeFind(self, key, startupShortlist=None, rpc='findNode'):#findValue=False):
         """ The basic Kademlia iterative lookup operation (for nodes/values)
         
@@ -384,7 +385,7 @@ class Node(object):
         @param key: the 160-bit key (i.e. the node or value ID) to search for
         @type key: str
         @param shortlist: A list of contacts to use as the starting shortlist
-                          for this search; this is normally only used when 
+                          for this search; this is normally only used when
                           the node joins the network
         @type shortlist: list
         @param findValue: Sets whether this algorithm should search for a data
@@ -414,7 +415,7 @@ class Node(object):
         else:
             # This is used during the bootstrap process; node ID's are most probably fake
             shortlist = startupShortlist
-        
+
         # List of active queries; len() indicates number of active probes
         # - using lists for these variables, because Python doesn't allow binding a new value to a name in an enclosing (non-global) scope
         activeProbes = []
@@ -424,11 +425,11 @@ class Node(object):
         # A list of found and known-to-be-active remote nodes
         activeContacts = []
         # This should only contain one entry; the next scheduled iteration call
-        pendingIterationCalls = []        
+        pendingIterationCalls = []
         prevClosestNode = [None]
         findValueResult = {}
         slowNodeCount = [0]
-        
+
         def extendShortlist(responseTuple):
             """ @type responseMsg: kademlia.msgtypes.ResponseMessage """
             # The "raw response" tuple contains the response message, and the originating address info
@@ -437,7 +438,7 @@ class Node(object):
             # Make sure the responding node is valid, and abort the operation if it isn't
             if responseMsg.nodeID in activeContacts or responseMsg.nodeID == self.id:
                 return responseMsg.nodeID
-            
+
             # Mark this node as active
             if responseMsg.nodeID in shortlist:
                 # Get the contact information from the shortlist...
@@ -466,21 +467,21 @@ class Node(object):
                         if self._routingTable.distance(key, responseMsg.nodeID) < self._routingTable.distance(key, activeContacts[0].id):
                             findValueResult['closestNodeNoValue'] = aContact
                     else:
-                        findValueResult['closestNodeNoValue'] = aContact             
+                        findValueResult['closestNodeNoValue'] = aContact
                 for contactTriple in result:
                     testContact = Contact(contactTriple[0], contactTriple[1], contactTriple[2], self._protocol)
                     if testContact not in shortlist:
                         shortlist.append(testContact)
             return responseMsg.nodeID
-        
+
         def removeFromShortlist(failure):
             """ @type failure: twisted.python.failure.Failure """
             failure.trap(protocol.TimeoutError)
             deadContactID = failure.getErrorMessage()
             if deadContactID in shortlist:
                 shortlist.remove(deadContactID)
-            return deadContactID  
-                
+            return deadContactID
+
         def cancelActiveProbe(contactID):
             activeProbes.pop()
             if len(activeProbes) <= constants.alpha/2 and len(pendingIterationCalls):
@@ -489,13 +490,13 @@ class Node(object):
                 del pendingIterationCalls[0]
                 #print 'forcing iteration ================='
                 searchIteration()
- 
+
         # Send parallel, asynchronous FIND_NODE RPCs to the shortlist of contacts
         def searchIteration():
             #print '==> searchiteration'
             slowNodeCount[0] = len(activeProbes)
             # Sort the discovered active nodes from closest to furthest
-            activeContacts.sort(lambda firstContact, secondContact, targetKey=key: cmp(self._routingTable.distance(firstContact.id, targetKey), self._routingTable.distance(secondContact.id, targetKey)))      
+            activeContacts.sort(lambda firstContact, secondContact, targetKey=key: cmp(self._routingTable.distance(firstContact.id, targetKey), self._routingTable.distance(secondContact.id, targetKey)))
             # This makes sure a returning probe doesn't force calling this function by mistake
             while len(pendingIterationCalls):
                 del pendingIterationCalls[0]
@@ -518,7 +519,7 @@ class Node(object):
             if len(activeContacts):
                 prevClosestNode[0] = activeContacts[0]
             contactedNow = 0
-            shortlist.sort(lambda firstContact, secondContact, targetKey=key: cmp(self._routingTable.distance(firstContact.id, targetKey), self._routingTable.distance(secondContact.id, targetKey)))      
+            shortlist.sort(lambda firstContact, secondContact, targetKey=key: cmp(self._routingTable.distance(firstContact.id, targetKey), self._routingTable.distance(secondContact.id, targetKey)))
             # Store the current shortList length before contacting other nodes
             prevShortlistLength = len(shortlist)
             for contact in shortlist:
@@ -543,7 +544,7 @@ class Node(object):
             elif prevShortlistLength < len(shortlist):
                 # Ensure that the closest contacts are taken from the updated shortList
                 searchIteration()
-            else: 
+            else:
                 #print '++++++++++++++ DONE (logically) +++++++++++++\n\n'
                 # If no probes were sent, there will not be any improvement, so we're done
                 outerDf.callback(activeContacts)
@@ -552,24 +553,24 @@ class Node(object):
         # Start the iterations
         searchIteration()
         return outerDf
-    
+
 #    def _kbucketIndex(self, key):
 #        """ Calculate the index of the k-bucket which is responsible for the
 #        specified key
-#        
+#
 #        @param key: The key for which to find the appropriate k-bucket index
 #        @type key: str
-#        
+#
 #        @return: The index of the k-bucket responsible for the specified key
 #        @rtype: int
 #        """
 #        distance = self._distance(self.id, key)
 #        bucketIndex = int(math.log(distance, 2))
 #        return bucketIndex
-    
+
 #    def _randomIDInBucketRange(self, bucketIndex):
 #        """ Returns a random ID in the specified k-bucket's range
-#        
+#
 #        @param bucketIndex: The index of the k-bucket to use
 #        @type bucketIndex: int
 #        """
@@ -629,13 +630,13 @@ class Node(object):
 #        refreshNextKBucket()
 #        #print '_refreshKbuckets returning'
 #        return outerDf
-    
+
     def _persistState(self, *args):
         state = {'id': self.id,
                  'closestNodes': self.findNode(self.id)}
         now = int(time.time())
         self._dataStore.setItem('nodeState', state, now, now, self.id)
-        
+
     def _refreshNode(self):
         """ Periodically called to perform k-bucket refreshes and data
         replication/republishing as necessary """
@@ -643,7 +644,7 @@ class Node(object):
         df = self._refreshRoutingTable()
         df.addCallback(self._republishData)
         twisted.internet.reactor.callLater(constants.checkRefreshInterval, self._refreshNode)
-        
+
     def _refreshRoutingTable(self):
         nodeIDs = self._routingTable.getRefreshList(0, False)
         outerDf = defer.Deferred()
@@ -662,21 +663,37 @@ class Node(object):
     def _republishData(self, *args):
         """ Republishes and expires any stored data (i.e. stored
         C{(key, value pairs)} that need to be republished/expired """
-        #print 'republishData called'
+        #print '== republishData called, node:',ord(self.id[0])
+        expiredKeys = []
         for key in self._dataStore:
+            # Filter internal variables stored in the datastore
+            if key == 'nodeState':
+                continue
             now = int(time.time())
             originalPublisherID = self._dataStore.originalPublisherID(key)
             age = now - self._dataStore.originalPublishTime(key)
+            #print '  node:',ord(self.id[0]),'key:',ord(key[0]),'orig publishing time:',self._dataStore.originalPublishTime(key),'now:',now,'age:',age,'lastPublished age:',now - self._dataStore.lastPublished(key),'original pubID:', ord(originalPublisherID[0])
             if originalPublisherID == self.id:
                 # This node is the original publisher; it has to republish
                 # the data before it expires (24 hours in basic Kademlia)
                 if age >= constants.dataExpireTimeout:
+                    #print '    REPUBLISHING key:', key
                     self.iterativeStore(key, self._dataStore[key])
             else:
                 # This node needs to replicate the data at set intervals,
                 # until it expires, without changing the metadata associated with it
-                if now - self._dataStore.lastPublished(key) >= constants.replicateInterval:
-                    self.iterativeStore(key, self._dataStore[key], originalPublisherID, age)
+                # First, check if the data has expired
+                if age >= constants.dataExpireTimeout:
+                    # This key/value pair has expired (and it has not been republished by the original publishing node
+                    # - remove it
+                    expiredKeys.append(key)
+                elif now - self._dataStore.lastPublished(key) >= constants.replicateInterval:
+                    # ...data has not yet expired, and we need to replicate it
+                    #print '    replicating key:', key,'age:',age
+                    self.iterativeStore(key=key, value=self._dataStore[key], originalPublisherID=originalPublisherID, age=age)
+        for key in expiredKeys:
+            #print '    expiring key:', key
+            del self._dataStore[key]
 
 
 if __name__ == '__main__':
