@@ -129,7 +129,7 @@ class SQLiteDataStore(DataStore):
         try:
             self._cursor.execute("SELECT key FROM data")
             for row in self._cursor:
-                keys.append(row[0])
+                keys.append(row[0].decode('hex'))
         finally:
             return keys
 
@@ -155,15 +155,17 @@ class SQLiteDataStore(DataStore):
         return int(self._dbQuery(key, 'originallyPublished'))
 
     def setItem(self, key, value, lastPublished, originallyPublished, originalPublisherID):
-        self._cursor.execute("select key from data where key=:reqKey", {'reqKey': key})
+        # Encode the key so that it doesn't corrupt the database
+        encodedKey = key.encode('hex')
+        self._cursor.execute("select key from data where key=:reqKey", {'reqKey': encodedKey})
         if self._cursor.fetchone() == None:
-            self._cursor.execute('INSERT INTO data(key, value, lastPublished, originallyPublished, originalPublisherID) VALUES (?, ?, ?, ?, ?)', (key, buffer(pickle.dumps(value, pickle.HIGHEST_PROTOCOL)), lastPublished, originallyPublished, originalPublisherID))
+            self._cursor.execute('INSERT INTO data(key, value, lastPublished, originallyPublished, originalPublisherID) VALUES (?, ?, ?, ?, ?)', (encodedKey, buffer(pickle.dumps(value, pickle.HIGHEST_PROTOCOL)), lastPublished, originallyPublished, originalPublisherID))
         else:
-            self._cursor.execute('UPDATE data SET value=?, lastPublished=?, originallyPublished=?, originalPublisherID=? WHERE key=?', (buffer(pickle.dumps(value, pickle.HIGHEST_PROTOCOL)), lastPublished, originallyPublished, originalPublisherID, key))
+            self._cursor.execute('UPDATE data SET value=?, lastPublished=?, originallyPublished=?, originalPublisherID=? WHERE key=?', (buffer(pickle.dumps(value, pickle.HIGHEST_PROTOCOL)), lastPublished, originallyPublished, originalPublisherID, encodedKey))
         
     def _dbQuery(self, key, columnName, unpickle=False):
         try:
-            self._cursor.execute("SELECT %s FROM data WHERE key=:reqKey" % columnName, {'reqKey': key})
+            self._cursor.execute("SELECT %s FROM data WHERE key=:reqKey" % columnName, {'reqKey': key.encode('hex')})
             row = self._cursor.fetchone()
             value = str(row[0])
         except TypeError:
@@ -178,4 +180,4 @@ class SQLiteDataStore(DataStore):
         return self._dbQuery(key, 'value', unpickle=True)
 
     def __delitem__(self, key):
-        self._cursor.execute("DELETE FROM data WHERE key=:reqKey", {'reqKey': key})
+        self._cursor.execute("DELETE FROM data WHERE key=:reqKey", {'reqKey': key.encode('hex')})

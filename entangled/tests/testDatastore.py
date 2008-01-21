@@ -20,12 +20,20 @@ class DictDataStoreTest(unittest.TestCase):
         h = hashlib.sha1()
         h.update('g')
         hashKey = h.digest()
+        h2 = hashlib.sha1()
+        h2.update('dried')
+        hashKey2 = h2.digest()
+        h3 = hashlib.sha1()
+        h3.update('Boozoo Bajou - 09 - S.I.P.mp3')
+        hashKey3 = h3.digest()
         self.cases = (('a', 'hello there\nthis is a test'),
                       ('b', unicode('jasdklfjklsdj;f2352352ljklzsdlkjkasf\ndsjklafsd')),
                       ('e', 123),
                       ('f', [('this', 'is', 1), {'complex': 'data entry'}]),
                       ('aMuchLongerKeyThanAnyOfThePreviousOnes', 'some data'),
-                      (hashKey, 'some data'))
+                      (hashKey, 'some data'),
+                      (hashKey2, 'abcdefghijklmnopqrstuvwxz'),
+                      (hashKey3, '1 2 3 4 5 6 7 8 9 0'))
     
     def testReadWrite(self):
         # Test write ability
@@ -40,7 +48,7 @@ class DictDataStoreTest(unittest.TestCase):
         # Verify writing (test query ability)
         for key, value in self.cases:
             try:
-                self.failUnless(key in self.ds.keys(), 'Key "%s" not found in DataStore!' % key)
+                self.failUnless(key in self.ds.keys(), 'Key "%s" not found in DataStore! DataStore key dump: %s' % (key, self.ds.keys()))
             except Exception:
                 import traceback
                 self.fail('Failed verifying that the following key exists: "%s"\n  The error was: %s:' % (key, traceback.format_exc(5)))
