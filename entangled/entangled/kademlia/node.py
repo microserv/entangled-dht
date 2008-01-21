@@ -16,6 +16,7 @@ import routingtable
 import datastore
 import protocol
 import twisted.internet.reactor
+import twisted.internet.threads
 from contact import Contact
 
 def rpcmethod(func):
@@ -271,7 +272,6 @@ class Node(object):
             df = self.iterativeFindNode(contactID)
             df.addCallback(parseResults)
         return df
-
 
     @rpcmethod
     def ping(self):
@@ -643,7 +643,7 @@ class Node(object):
         #print 'refreshNode called'
         df = self._refreshRoutingTable()
         df.addCallback(self._republishData)
-        twisted.internet.reactor.callLater(constants.checkRefreshInterval, self._refreshNode)
+        df.addCallback(self._scheduleNextNodeRefresh)
 
     def _refreshRoutingTable(self):
         nodeIDs = self._routingTable.getRefreshList(0, False)
@@ -661,8 +661,20 @@ class Node(object):
         return outerDf
 
     def _republishData(self, *args):
+        #print '---republishData() called'
+        df = twisted.internet.threads.deferToThread(self._threadedRepublishData)
+        return df
+
+    def _scheduleNextNodeRefresh(self, *args):
+        #print '==== sheduling next refresh'
+        twisted.internet.reactor.callLater(constants.checkRefreshInterval, self._refreshNode)
+
+    def _threadedRepublishData(self, *args):
         """ Republishes and expires any stored data (i.e. stored
-        C{(key, value pairs)} that need to be republished/expired """
+        C{(key, value pairs)} that need to be republished/expired
+        
+        This method should run in a deferred thread
+        """
         #print '== republishData called, node:',ord(self.id[0])
         expiredKeys = []
         for key in self._dataStore:
@@ -678,7 +690,8 @@ class Node(object):
                 # the data before it expires (24 hours in basic Kademlia)
                 if age >= constants.dataExpireTimeout:
                     #print '    REPUBLISHING key:', key
-                    self.iterativeStore(key, self._dataStore[key])
+                    #self.iterativeStore(key, self._dataStore[key])
+                    twisted.internet.reactor.callFromThread(self.iterativeStore, key, self._dataStore[key])
             else:
                 # This node needs to replicate the data at set intervals,
                 # until it expires, without changing the metadata associated with it
@@ -690,10 +703,12 @@ class Node(object):
                 elif now - self._dataStore.lastPublished(key) >= constants.replicateInterval:
                     # ...data has not yet expired, and we need to replicate it
                     #print '    replicating key:', key,'age:',age
-                    self.iterativeStore(key=key, value=self._dataStore[key], originalPublisherID=originalPublisherID, age=age)
+                    #self.iterativeStore(key=key, value=self._dataStore[key], originalPublisherID=originalPublisherID, age=age)
+                    twisted.internet.reactor.callFromThread(self.iterativeStore, key=key, value=self._dataStore[key], originalPublisherID=originalPublisherID, age=age)
         for key in expiredKeys:
             #print '    expiring key:', key
             del self._dataStore[key]
+        #print 'done with threadedDataRefresh()'
 
 
 if __name__ == '__main__':
