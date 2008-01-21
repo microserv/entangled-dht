@@ -88,15 +88,21 @@ class EntangledNode(kademlia.node.Node):
         h.update(name)
         mainKey = h.digest()
 
-        # Store the main key, with its value...
-        self.iterativeStore(mainKey, data)
+        outerDf = defer.Deferred()
 
-        # Create hashes for the keywords in the name
-        keywordKeys = self._keywordHashesFromString(name)
+        def publishKeywords(deferredResult=None):        
+            # Create hashes for the keywords in the name
+            keywordKeys = self._keywordHashesFromString(name)
+            # Update the appropriate inverted indexes
+            df = self._addToInvertedIndexes(keywordKeys, name)
+            df.addCallback(lambda _: outerDf.callback(None))
+
+        # Store the main key, with its value...
+        df = self.iterativeStore(mainKey, data)
         
-        # Update the appropriate inverted indexes
-        df = self._addToInvertedIndexes(keywordKeys, name)
-        return df
+        df.addCallback(publishKeywords)
+        
+        return outerDf
 
     def _addToInvertedIndexes(self, keywordKeys, indexLink):
         # Prepare a deferred result for this operation
@@ -299,8 +305,10 @@ if __name__ == '__main__':
     else:
         knownNodes = None
 
-    os.remove('/tmp/dbFile%s.db' % sys.argv[1])
+    if os.path.isfile('/tmp/dbFile%s.db' % sys.argv[1]):
+        os.remove('/tmp/dbFile%s.db' % sys.argv[1])
     dataStore = SQLiteDataStore(dbFile = '/tmp/dbFile%s.db' % sys.argv[1])
     node = EntangledNode( udpPort=int(sys.argv[1]), dataStore=dataStore )
+    #node = EntangledNode( udpPort=int(sys.argv[1]) )
     node.joinNetwork(knownNodes)
     twisted.internet.reactor.run()
