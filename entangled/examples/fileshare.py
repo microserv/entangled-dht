@@ -10,8 +10,8 @@ pygtk.require('2.0')
 import os, sys, gtk, gobject
 
 from twisted.internet import gtk2reactor
-import entangled.kademlia.protocol
-entangled.kademlia.protocol.reactor = gtk2reactor.install()
+gtk2reactor.install()
+import twisted.internet.reactor
 
 from twisted.internet import defer
 from twisted.internet.protocol import Protocol, ServerFactory, ClientCreator
@@ -220,7 +220,7 @@ class FileShareWindow(gtk.Window):
         self.factory = ServerFactory()
         self.factory.protocol = FileServer
         self.factory.sharePath = '.'
-        entangled.kademlia.protocol.reactor.listenTCP(int(sys.argv[1]), self.factory)
+        twisted.internet.reactor.listenTCP(int(sys.argv[1]), self.factory)
 
 
     def createListStore(self, data):
@@ -265,7 +265,7 @@ class FileShareWindow(gtk.Window):
         print 'files: ', len(files)
         def publishNextFile(result=None):
             if len(files) > 0:
-                entangled.kademlia.protocol.reactor.iterate()
+                #twisted.internet.reactor.iterate()
                 filename = files.pop()
                 iter = model.append()
                 print '-->',filename
@@ -314,7 +314,7 @@ class FileShareWindow(gtk.Window):
                 dialog.run()
                 dialog.destroy()
             else:
-                c = ClientCreator(entangled.kademlia.protocol.reactor, FileGetter)
+                c = ClientCreator(twisted.internet.reactor, FileGetter)
                 df = c.connectTCP(contact.address, contact.port)
                 return df
         
@@ -356,8 +356,8 @@ if __name__ == '__main__':
         os.makedirs(os.path.expanduser('~')+'/.entangled')
     except OSError:
         pass
-    dataStore = SQLiteDataStore(os.path.expanduser('~')+'/.entangled/fileshare.sqlite')
-    node = entangled.node.EntangledNode(dataStore=dataStore)
+    dataStore = None#SQLiteDataStore(os.path.expanduser('~')+'/.entangled/fileshare.sqlite')
+    node = entangled.node.EntangledNode(udpPort=int(sys.argv[1]), dataStore=dataStore)
     node.invalidKeywords.extend(('mp3', 'png', 'jpg', 'txt', 'ogg'))
     node.keywordSplitters.extend(('-', '!'))
     window = FileShareWindow(node)
@@ -365,4 +365,5 @@ if __name__ == '__main__':
     window.set_title('Entangled File Sharing Demo')
     window.present()
     
-    node.joinNetwork(int(sys.argv[1]), knownNodes)
+    node.joinNetwork(knownNodes)
+    twisted.internet.reactor.run()
