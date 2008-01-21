@@ -15,7 +15,7 @@ import constants
 import encoding
 import msgtypes
 import msgformat
-import contact
+from contact import Contact
 
 reactor = twisted.internet.reactor
 
@@ -69,7 +69,7 @@ class KademliaProtocol(protocol.DatagramProtocol):
             df._rpcRawResponse = True
 
         # Set the RPC timeout timer
-        timeoutCall = reactor.callLater(constants.rpcTimeout, self._msgTimeout, msg.id)
+        timeoutCall = reactor.callLater(constants.rpcTimeout, self._msgTimeout, msg.id) #IGNORE:E1101
         # Transmit the data
         self._send(encodedMsg, msg.id, (contact.address, contact.port))
         self._sentMessages[msg.id] = (contact.id, df, timeoutCall)
@@ -101,7 +101,7 @@ class KademliaProtocol(protocol.DatagramProtocol):
         msgPrimitive = self._encoder.decode(datagram)
         message = self._translator.fromPrimitive(msgPrimitive)
 
-        remoteContact = contact.Contact(message.nodeID, address[0], address[1], self)
+        remoteContact = Contact(message.nodeID, address[0], address[1], self)
         # Refresh the remote node's details in the local node's k-buckets
         self._node.addContact(remoteContact)
 
@@ -159,7 +159,7 @@ class KademliaProtocol(protocol.DatagramProtocol):
             seqNumber = 0
             startPos = 0
             while seqNumber < totalPackets:
-                reactor.iterate()
+                reactor.iterate() #IGNORE:E1101
                 packetData = data[startPos:startPos+self.msgSizeLimit]
                 encSeqNumber = chr(seqNumber >> 8) + chr(seqNumber & 0xff)
                 txData = '\x00%s%s%s\x00%s' % (encTotalPackets, encSeqNumber, rpcID, packetData)
@@ -233,7 +233,7 @@ class KademliaProtocol(protocol.DatagramProtocol):
                         df.errback(failure.Failure(TimeoutError(remoteContactID)))
                         return
                 # Reset the RPC timeout timer
-                timeoutCall = reactor.callLater(constants.rpcTimeout, self._msgTimeout, messageID)
+                timeoutCall = reactor.callLater(constants.rpcTimeout, self._msgTimeout, messageID) #IGNORE:E1101
                 self._sentMessages[messageID] = (remoteContactID, df, timeoutCall)
                 return
             del self._sentMessages[messageID]
