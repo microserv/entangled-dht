@@ -147,13 +147,48 @@ class FakeRPCProtocol(protocol.DatagramProtocol):
             for closeContact in closestContactsList:
                 #print closeContact.id
                 closestContacts.append((closeContact.id, closeContact.address, closeContact.port))
-            message = ResponseMessage("rpcId", contact, closestContacts)
+            message = ResponseMessage("rpcId", contact.id, closestContacts)
                     
             df = defer.Deferred()
             df.callback((message,(contact.address, contact.port)))
             return df
         elif method == "findValue":
+            for contactTuple in self.network:
+                if contact == contactTuple[0]:
+                    # Get the data stored by this remote contact 
+                    dataDict = contactTuple[2]
+                    dataKey = dataDict.keys()[0]
+                    data = dataDict.get(dataKey)
+                    
+                    # Check if this contact has the requested value
+                    if dataKey == args[0]:
+                        # Return the data value
+                        response = dataDict
+                        
+                        print "data found at contact: " + contact.id
+                    else:
+                        # Return the closest contact to the requested data key
+                        print "data not found at contact: " + contact.id
+                        closeContacts = contactTuple[1]
+                        closestContacts = []
+                        for closeContact in closeContacts:
+                            closestContacts.append((closeContact.id, closeContact.address, closeContact.port))
+                            response = closestContacts
+                                        
+            # Create the response message
+            message = ResponseMessage("rpcId", contact.id, response)
+            df = defer.Deferred()
+            df.callback((message,(contact.address, contact.port)))
+            return df
+                    
+                    
+                    
+            
             print "findValue"
+    
+    def _send(self, data, rpcID, address):
+        """ fake sending data """
+        
             
 
 class NodeLookupTest(unittest.TestCase):
@@ -168,7 +203,7 @@ class NodeLookupTest(unittest.TestCase):
         # since there is no asynchronous network communication
         
         # create the node to be tested in isolation
-        self.node = entangled.kademlia.node.Node(None, None, self._protocol)
+        self.node = entangled.kademlia.node.Node(None, None, None, self._protocol)
         
         self.updPort = 81173
         
@@ -178,13 +213,18 @@ class NodeLookupTest(unittest.TestCase):
         self.contactsAmount = 80
         # set the node ID manually for testing
         self.node.id = '12345678901234567800'
+        
+        # Reinitialise the routing table
+        self.node._routingTable = entangled.kademlia.routingtable.OptimizedTreeRoutingTable(self.node.id)
        
         # create 160 bit node ID's for test purposes
         self.testNodeIDs = []
-        idNum = long(self.node.id.encode('hex'), 16)
+        #idNum = long(self.node.id.encode('hex'), 16)
+        idNum = int(self.node.id)
         for i in range(self.contactsAmount):
             # create the testNodeIDs in ascending order, away from the actual node ID, with regards to the distance metric 
             self.testNodeIDs.append(idNum + i + 1)
+            
         
         # generate contacts
         self.contacts = []
@@ -202,6 +242,15 @@ class NodeLookupTest(unittest.TestCase):
                           (self.contacts[6], self.contacts[56:63]),
                           (self.contacts[7], self.contacts[64:71]),
                           (self.contacts[8], self.contacts[72:79]),
+                          (self.contacts[40], self.contacts[41:48]),
+                          (self.contacts[41], self.contacts[41:48]),
+                          (self.contacts[42], self.contacts[41:48]),
+                          (self.contacts[43], self.contacts[41:48]),
+                          (self.contacts[44], self.contacts[41:48]),
+                          (self.contacts[45], self.contacts[41:48]),
+                          (self.contacts[46], self.contacts[41:48]),
+                          (self.contacts[47], self.contacts[41:48]),
+                          (self.contacts[48], self.contacts[41:48]),
                           (self.contacts[50], self.contacts[0:7]),
                           (self.contacts[51], self.contacts[8:15]),
                           (self.contacts[52], self.contacts[16:23]))
@@ -211,15 +260,17 @@ class NodeLookupTest(unittest.TestCase):
     def testNodeBootStrap(self):
         """  Test bootstrap with the closest possible contacts """
                      
-        df = self.node._iterativeFind(self.node.id, self.contacts[0:9])
+        df = self.node._iterativeFind(self.node.id, self.contacts[0:8])
         # Set the expected result
         expectedResult = []   
-        for item in self.contacts[0:9]:
+        
+        for item in self.contacts[0:6]:
                 expectedResult.append(item.id)
                 #print item.id
         
         # Get the result from the deferred
         activeContacts = df.result
+              
         
         # Check the length of the active contacts
         self.failUnlessEqual(activeContacts.__len__(), expectedResult.__len__(), \
@@ -229,66 +280,149 @@ class NodeLookupTest(unittest.TestCase):
         # Check that the received active contacts are the same as the input contacts
         self.failUnlessEqual(activeContacts, expectedResult, \
                                  "Active should only contain the closest possible contacts which were used as input for the boostrap")
+    
+#    def testFindingCloserNodes(self):
+#        """ Test discovery of closer contacts""" 
+#               
+#        # Use input contacts that have knowledge of closer contacts,
+#        df = self.node._iterativeFind(self.node.id, self.contacts[50:53])
+#        #set the expected result
+#        expectedResult = []   
+#        #print "############ Expected Active contacts #################"
+#        for item in self.contacts[0:9]:
+#                expectedResult.append(item.id)
+#                #print item.id
+#        #print "#######################################################"
+#        
+#        # Get the result from the deferred
+#        activeContacts = df.result
+#        
+#        #print "!!!!!!!!!!! Receieved Active contacts !!!!!!!!!!!!!!!"
+#        #for item in activeContacts:
+#        #    print item.id
+#        #print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+#        
+#        # Check the length of the active contacts
+#        self.failUnlessEqual(activeContacts.__len__(), expectedResult.__len__(), \
+#                                 "Length of received active contacts not as expected, should be %d" %expectedResult.__len__())
+#            
+#        
+#        # Check that the received active contacts are now closer to this node
+#        self.failUnlessEqual(activeContacts, expectedResult, \
+#                                 "Active contacts should now only contain the closest possible contacts")
+    
+    
         
-              
-    def testFindingCloserNodes(self):
-        """ Test discovery of closer contacts""" 
-               
-        # Use input contacts that have knowledge of closer contacts,
-        df = self.node._iterativeFind(self.node.id, self.contacts[50:53])
-        #set the expected result
-        expectedResult = []   
-        #print "############ Expected Active contacts #################"
-        for item in self.contacts[0:9]:
-                expectedResult.append(item.id)
-                #print item.id
-        #print "#######################################################"
+    def testIterativeStore(self):
+        """ test storing values """
         
-        # Get the result from the deferred
-        activeContacts = df.result
-        
-        #print "!!!!!!!!!!! Receieved Active contacts !!!!!!!!!!!!!!!"
-        #for item in activeContacts:
-        #    print item.id
-        #print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
-        
-        # Check the length of the active contacts
-        self.failUnlessEqual(activeContacts.__len__(), expectedResult.__len__(), \
-                                 "Length of received active contacts not as expected, should be %d" %expectedResult.__len__())
-            
-        
-        # Check that the received active contacts are now closer to this node
-        self.failUnlessEqual(activeContacts, expectedResult, \
-                                 "Active contacts should now only contain the closest possible contacts")
-               
-        
-    def testFindValue(self):
-        # create test values using the contact ID as the key
-        """testValues = ({self.contacts[0].id: "some test data"},
-                      {self.contacts[1].id: "some more test data"},
-                      {self.contacts[8].id: "and more data"}
-                      )
-        
-              
-        # create the network of contacts in format: (contact, closest contacts, values)        
-        contactNetwork = ((self.contacts[0], self.contacts[8:15], testValues[0]),
-                          (self.contacts[1], self.contacts[16:23], testValues[1]),
-                          (self.contacts[2], self.contacts[24:31], testValues[2]))
-        
+        # create the network of contacts in format: (contact, closest contacts)        
+        contactNetwork = ((self.contacts[0], self.contacts[0:8]),
+                          (self.contacts[1], self.contacts[0:8]),
+                          (self.contacts[2], self.contacts[0:8]),
+                          (self.contacts[3], self.contacts[0:8]),
+                          (self.contacts[4], self.contacts[0:8]),
+                          (self.contacts[5], self.contacts[0:8]),
+                          (self.contacts[6], self.contacts[0:8]),
+                          (self.contacts[7], self.contacts[0:8]),
+                          (self.contacts[8], self.contacts[0:8]),
+                          (self.contacts[40], self.contacts[41:48]),
+                          (self.contacts[41], self.contacts[41:48]),
+                          (self.contacts[42], self.contacts[41:48]),
+                          (self.contacts[43], self.contacts[41:48]),
+                          (self.contacts[44], self.contacts[41:48]),
+                          (self.contacts[45], self.contacts[41:48]),
+                          (self.contacts[46], self.contacts[41:48]),
+                          (self.contacts[47], self.contacts[41:48]),
+                          (self.contacts[48], self.contacts[41:48]))
         self._protocol.createNetwork(contactNetwork)
+                          
         
-        # Initialise the node with some known contacts
-        self.node._iterativeFind(self.node.id, self.contacts[0:3])
+        # Test storing a value that has an hash id close to the known contacts
+        # The value should only be stored at those nodes
+        value = 'value'
+        valueID = self.contacts[40].id
         
-        self.node.iterativeFindValue(testValues[0].keys()[0])"""
+        # Manually populate the routing table with contacts that have ID's close to the valueID
+        for contact in self.contacts[40:48]:
+            self.node.addContact(contact)
+            
+        # Manually populate the routing table with contacts that have ID's far away from the valueID
+        for contact in self.contacts[0:8]:
+            self.node.addContact(contact)
+        
+        # Store the value
+        df = self.node.iterativeStore(valueID, value)          
+                     
+        storageNodes = df.result
+        
+        storageNodeIDs = []
+        for item in storageNodes:
+            storageNodeIDs.append(item.id)
+        storageNodeIDs.sort()
+        #print storageNodeIDs
+        
+        expectedIDs = []
+        for item in self.contacts[40:43]:
+            expectedIDs.append(item.id)
+        #print expectedIDs
+        
+        #print '#### storage nodes ####'
+        #for node in storageNodes:
+        #    print node.id
+        
+            
+        # check that the value has been stored at nodes with ID's close to the valueID
+        self.failUnlessEqual(storageNodeIDs, expectedIDs, \
+                                 "Value not stored at nodes with ID's close to the valueID")
+       
+#    def testFindValue(self):
+#        # create test values using the contact ID as the key
+#        testValues = ({self.contacts[0].id: "some test data"},
+#                      {self.contacts[1].id: "some more test data"},
+#                      {self.contacts[8].id: "and more data"}
+#                      )
+#        
+#              
+#        # create the network of contacts in format: (contact, closest contacts, values)        
+#        contactNetwork = ((self.contacts[0], self.contacts[0:6], testValues[0]),
+#                          (self.contacts[1], self.contacts[0:6], testValues[1]),
+#                          (self.contacts[2], self.contacts[0:6], {'2':'2'}),
+#                          (self.contacts[3], self.contacts[0:6], {'4':'5'}),
+#                          (self.contacts[4], self.contacts[0:6], testValues[2]),
+#                          (self.contacts[5], self.contacts[0:6], {'2':'2'}),
+#                          (self.contacts[6], self.contacts[0:6], {'2':'2'}))
+#        
+#        self._protocol.createNetwork(contactNetwork)
+#        
+#        # Initialise the routing table with some contacts
+#        for contact in self.contacts[0:4]:
+#            self.node.addContact(contact)
+#        
+#        # Initialise the node with some known contacts
+#        #self.node._iterativeFind(self.node.id, self.contacts[0:3])
+#        
+#        df = self.node.iterativeFindValue(testValues[1].keys()[0])
+#        
+#        resultDict = df.result
+#        keys = resultDict.keys()
+#        
+#        for key in keys:
+#            if key == 'closestNodeNoValue':
+#                print "closest contact without data " + " " + resultDict.get(key).id
+#            else:
+#                print "data key :" + key + "; " + "data: " + resultDict.get(key)
+      
+        
+        
            
                       
 
 def suite():
     suite = unittest.TestSuite()
-    suite.addTest(unittest.makeSuite(NodeIDTest))
-    suite.addTest(unittest.makeSuite(NodeDataTest))
-    suite.addTest(unittest.makeSuite(NodeContactTest))
+    #suite.addTest(unittest.makeSuite(NodeIDTest))
+    #suite.addTest(unittest.makeSuite(NodeDataTest))
+    #suite.addTest(unittest.makeSuite(NodeContactTest))
     suite.addTest(unittest.makeSuite(NodeLookupTest))
     return suite
 
