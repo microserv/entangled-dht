@@ -420,9 +420,9 @@ class NodeLookupTest(unittest.TestCase):
 
 def suite():
     suite = unittest.TestSuite()
-    #suite.addTest(unittest.makeSuite(NodeIDTest))
-    #suite.addTest(unittest.makeSuite(NodeDataTest))
-    #suite.addTest(unittest.makeSuite(NodeContactTest))
+    suite.addTest(unittest.makeSuite(NodeIDTest))
+    suite.addTest(unittest.makeSuite(NodeDataTest))
+    suite.addTest(unittest.makeSuite(NodeContactTest))
     suite.addTest(unittest.makeSuite(NodeLookupTest))
     return suite
 
