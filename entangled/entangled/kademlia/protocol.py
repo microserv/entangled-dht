@@ -25,6 +25,9 @@ class TimeoutError(Exception):
 class KademliaProtocol(protocol.DatagramProtocol):
     """ Implements all low-level network-related functions of a Kademlia node """
     msgSizeLimit = constants.udpDatagramMaxSize-26
+    maxToSendDelay = 10**-3
+    minToSendDelay = 10**-5
+
     def __init__(self, node, msgEncoder=encoding.Bencode(), msgTranslator=msgformat.DefaultFormat()):
         self._node = node
         self._encoder = msgEncoder
@@ -163,7 +166,8 @@ class KademliaProtocol(protocol.DatagramProtocol):
                 packetData = data[startPos:startPos+self.msgSizeLimit]
                 encSeqNumber = chr(seqNumber >> 8) + chr(seqNumber & 0xff)
                 txData = '\x00%s%s%s\x00%s' % (encTotalPackets, encSeqNumber, rpcID, packetData)
-                self.transport.write(txData, address)
+                #self.transport.write(txData, address)
+                reactor.callLater(self.maxToSendDelay*seqNumber+self.minToSendDelay, self.transport.write, txData, address)
                 startPos += self.msgSizeLimit
                 seqNumber += 1
         else:
