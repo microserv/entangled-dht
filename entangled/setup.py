@@ -54,7 +54,7 @@ setup(
           'Programming Language :: Python',
           'Topic :: Communications :: File Sharing',
           'Topic :: Internet',
-          'Topic :: Software Development :: Frameworks',
+          'Topic :: Software Development :: Libraries',
           'Topic :: System :: Networking',
           ],
 )
