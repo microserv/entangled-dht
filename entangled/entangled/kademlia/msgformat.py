@@ -19,11 +19,11 @@ class MessageTranslator(object):
     def fromPrimitive(self, msgPrimitive):
         """ Create an RPC Message from a message's string representation
         
-        @param messageString: The unencoded string representation of a message
-        @type messageString: str, int, list or dict
+        @param msgPrimitive: The unencoded primitive representation of a message
+        @type msgPrimitive: str, int, list or dict
         
         @return: The translated message object
-        @rtype: Message
+        @rtype: entangled.kademlia.msgtypes.Message
         """
     
     def toPrimitive(self, message):
