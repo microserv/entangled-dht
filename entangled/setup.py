@@ -23,15 +23,13 @@ from setuptools import setup, find_packages, Command
 
 class BuildAPIDocs(Command):
     """ setuptools Command to build documentation using epydoc """
-    description = "run quality assurance tests over the package"
+    description = "build html API documentation"
     user_options = []
 
     def initialize_options(self):
-        """init options"""
         pass
 
     def finalize_options(self):
-        """finalize options"""
         pass
 
     def run(self):
