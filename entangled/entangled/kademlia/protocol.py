@@ -161,6 +161,10 @@ class KademliaProtocol(protocol.DatagramProtocol):
             | (1 byte)  | (2 bytes)  |  (2 bytes)    |(20 bytes)| (1 byte) |
             |           |     |      |      |        ||||||||||||          |
         
+        @note: The header used for breaking up large data segments will
+               possibly be moved out of the KademliaProtocol class in the
+               future, into something similar to a message translator/encoder
+               class (see C{kademlia.msgformat} and C{kademlia.encoding}). 
         """
         if len(data) > self.msgSizeLimit:
             # We have to spread the data over multiple UDP datagrams, and provide sequencing information

@@ -5,7 +5,7 @@
 # version.
 # See the COPYING file included in this archive
 
-import sys
+import os, sys
 
 if sys.version_info < (2,5):
     print >>sys.stderr, "Entangled requires at least Python 2.5"
@@ -17,8 +17,40 @@ else:
         import twisted
     except ImportError:
         print >>sys.stderr, "Entangled requires Twisted (Core) to be installed"
+        sys.exit(3)
 
-from setuptools import setup, find_packages
+from setuptools import setup, find_packages, Command
+
+class BuildAPIDocs(Command):
+    """ setuptools Command to build documentation using epydoc """
+    description = "run quality assurance tests over the package"
+    user_options = []
+
+    def initialize_options(self):
+        """init options"""
+        pass
+
+    def finalize_options(self):
+        """finalize options"""
+        pass
+
+    def run(self):
+        try:
+            import epydoc.cli
+        except ImportError:
+             print >>sys.stderr, "Epydoc (http://epydoc.sf.net) needs to be installed to build API documentation"
+             sys.exit(3)
+        else:
+            print 'Building Entangled API documentation...'
+            from epydoc.docbuilder import build_doc_index
+            from epydoc.docwriter.html import HTMLWriter
+            outputDir = '%s/doc/html' % os.path.abspath(os.path.dirname(__file__))
+            docindex = build_doc_index(['entangled']) 
+            htmlWriter = HTMLWriter(docindex, prj_name='Entangled',
+                                    prj_url='http://entangled.sourceforge.net',
+                                    inheritance='grouped', include_source_code=True)
+            htmlWriter.write(outputDir)
+            print 'API documentation created in: %s' % outputDir
 
 setup(
       name='entangled',
@@ -57,4 +89,5 @@ setup(
           'Topic :: Software Development :: Libraries',
           'Topic :: System :: Networking',
           ],
+      cmdclass={'build_apidocs': BuildAPIDocs}
 )

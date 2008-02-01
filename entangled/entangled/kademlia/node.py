@@ -20,11 +20,24 @@ import twisted.internet.threads
 from contact import Contact
 
 def rpcmethod(func):
-    """ Decorator to expose methods as RPC calls """
+    """ Decorator to expose Node methods as remote procedure calls
+    
+    Apply this decorator to methods in the Node class (or a subclass) in order
+    to make them remotely callable via the DHT's RPC mechanism.
+    """
     func.rpcmethod = True
     return func
 
 class Node(object):
+    """ Local node in the Kademlia network
+    
+    This class represents a single local node in a Kademlia network; in other
+    words, this class encapsulates an Entangled-using application's "presence"
+    in a Kademlia network.
+    
+    In Entangled, all interactions with the Kademlia network by a client
+    application is performed via this class (or a subclass). 
+    """
     def __init__(self, udpPort=4000, dataStore=None, routingTable=None, networkProtocol=None):
         """
         @param dataStore: The data store to use. This must be class inheriting
@@ -80,8 +93,8 @@ class Node(object):
         self._persistState()
 
     def joinNetwork(self, knownNodeAddresses=None):
-        """ Causes the Node to join the Kademlia network; this will execute
-        the Twisted reactor's main loop
+        """ Causes the Node to join the Kademlia network; normally, this
+        should be called before any other DHT operations.
         
         @param knownNodeAddresses: A sequence of tuples containing IP address
                                    information for existing nodes on the
@@ -254,7 +267,12 @@ class Node(object):
         self._routingTable.removeContact(contactID)
 
     def findContact(self, contactID):
-        """
+        """ Find a entangled.kademlia.contact.Contact object for the specified
+        cotact ID
+        
+        @param contactID: The contact ID of the required Contact object
+        @type contactID: str
+                 
         @return: Contact object of remote node with the specified node ID
         @rtype: twisted.internet.defer.Deferred
         """
@@ -275,7 +293,10 @@ class Node(object):
 
     @rpcmethod
     def ping(self):
-        """ Used to verify contact between two Kademlia nodes """
+        """ Used to verify contact between two Kademlia nodes
+        
+        @rtype: str
+        """
         return 'pong'
 
     @rpcmethod
@@ -294,6 +315,8 @@ class Node(object):
                     isn't actually given, to compensate for clock skew between
                     different nodes.
         @type age: int
+
+        @rtype: str
         
         @todo: Since the data (value) may be large, passing it around as a buffer
                (which is the case currently) might not be a good idea... will have
@@ -348,6 +371,10 @@ class Node(object):
         
         @param key: The hashtable key of the data to return
         @type key: str
+        
+        @return: A dictionary containing the requested key/value pair,
+                 or a list of contact triples closest to the requested key.
+        @rtype: dict or list
         """
         if key in self._dataStore:
             return {key: self._dataStore[key]}
@@ -374,7 +401,7 @@ class Node(object):
         hash.update(str(random.getrandbits(255)))
         return hash.digest()
 
-    def _iterativeFind(self, key, startupShortlist=None, rpc='findNode'):#findValue=False):
+    def _iterativeFind(self, key, startupShortlist=None, rpc='findNode'):
         """ The basic Kademlia iterative lookup operation (for nodes/values)
         
         This builds a list of k "closest" contacts through iterative use of
@@ -384,18 +411,23 @@ class Node(object):
         
         @param key: the 160-bit key (i.e. the node or value ID) to search for
         @type key: str
-        @param shortlist: A list of contacts to use as the starting shortlist
-                          for this search; this is normally only used when
-                          the node joins the network
-        @type shortlist: list
-        @param findValue: Sets whether this algorithm should search for a data
-                          value (if set to C{True}), or not.
-        @type findValue: bool
+        @param startupShortlist: A list of contacts to use as the starting
+                                 shortlist for this search; this is normally
+                                 only used when the node joins the network
+        @type startupShortlist: list
+        @param rpc: The name of the RPC to issue to remote nodes during the
+                    Kademlia lookup operation (e.g. this sets whether this
+                    algorithm should search for a data value (if
+                    rpc='findValue') or not. It can thus be used to perform
+                    other operations that piggy-back on the basic Kademlia
+                    lookup operation (Entangled's "delete" RPC, for instance).
+        @type rpc: str
         
         @return: If C{findValue} is C{True}, the algorithm will stop as soon
                  as a data value for C{key} is found, and return a dictionary
                  containing the key and the found value. Otherwise, it will
                  return a list of the k closest nodes to the specified key
+        @rtype: twisted.internet.defer.Deferred
         """
         if rpc != 'findNode':
             findValue = True
