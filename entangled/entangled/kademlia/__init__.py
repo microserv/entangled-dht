@@ -26,5 +26,5 @@ entangled.kademlia.constants to suit their needs. Refer to the constants
 module for documentation on what these values control. 
 """
 
-from entangled.kademlia.node import Node
-from entangled.kademlia.datastore import DictDataStore, SQLiteDataStore
+from node import Node
+from datastore import DictDataStore, SQLiteDataStore
