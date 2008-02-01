@@ -151,10 +151,20 @@ class KademliaProtocol(protocol.DatagramProtocol):
 
     def _send(self, data, rpcID, address):
         """ Transmit the specified data over UDP, breaking it up into several
-        packets if necessary """
+        packets if necessary
+        
+        If the data is spread over multiple UDP datagrams, the packets have the
+        following structure::
+            |           |     |      |      |        ||||||||||||   0x00   |
+            |Transmision|Total number|Sequence number| RPC ID   |Header end|
+            | type ID   | of packets |of this packet |          | indicator|
+            | (1 byte)  | (2 bytes)  |  (2 bytes)    |(20 bytes)| (1 byte) |
+            |           |     |      |      |        ||||||||||||          |
+        
+        """
         if len(data) > self.msgSizeLimit:
             # We have to spread the data over multiple UDP datagrams, and provide sequencing information
-            # 1st byte is transmission id, bytes 2 & 3 are the total number of packets in this transmission, bytes 4 & 5 are the sequence number for this specific packet
+            # 1st byte is transmission type id, bytes 2 & 3 are the total number of packets in this transmission, bytes 4 & 5 are the sequence number for this specific packet
             totalPackets = len(data) / self.msgSizeLimit
             if len(data) % self.msgSizeLimit > 0:
                 totalPackets += 1
@@ -162,12 +172,11 @@ class KademliaProtocol(protocol.DatagramProtocol):
             seqNumber = 0
             startPos = 0
             while seqNumber < totalPackets:
-                reactor.iterate() #IGNORE:E1101
+                #reactor.iterate() #IGNORE:E1101
                 packetData = data[startPos:startPos+self.msgSizeLimit]
                 encSeqNumber = chr(seqNumber >> 8) + chr(seqNumber & 0xff)
                 txData = '\x00%s%s%s\x00%s' % (encTotalPackets, encSeqNumber, rpcID, packetData)
-                #self.transport.write(txData, address)
-                reactor.callLater(self.maxToSendDelay*seqNumber+self.minToSendDelay, self.transport.write, txData, address)
+                reactor.callLater(self.maxToSendDelay*seqNumber+self.minToSendDelay, self.transport.write, txData, address) #IGNORE:E1101
                 startPos += self.msgSizeLimit
                 seqNumber += 1
         else:

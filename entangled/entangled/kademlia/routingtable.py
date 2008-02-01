@@ -279,8 +279,9 @@ class TreeRoutingTable(RoutingTable):
         bucketIndex = self._kbucketIndex(contactID)
         try:
             self._buckets[bucketIndex].removeContact(contactID)
-        except ValueError, e:
-            print 'removeContact(): Warning: ', e
+        except ValueError:
+            #print 'removeContact(): Contact not in routing table'
+            return
 
     def touchKBucket(self, key):
         """ Update the "last accessed" timestamp of the k-bucket which covers
@@ -409,8 +410,8 @@ class OptimizedTreeRoutingTable(TreeRoutingTable):
         bucketIndex = self._kbucketIndex(contactID)
         try:
             contact = self._buckets[bucketIndex].getContact(contactID)
-        except ValueError, e:
-            print 'removeContact(): Warning: ', e
+        except ValueError:
+            #print 'removeContact(): Contact not in routing table'
             return
         contact.failedRPCs += 1
         if contact.failedRPCs >= 5:        
