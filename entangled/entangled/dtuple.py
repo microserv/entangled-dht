@@ -18,8 +18,8 @@ class DistributedTupleSpacePeer(EntangledNode):
     """ A specialized form of an Entangled DHT node that provides an API
     for participating in a distributed Tuple Space (aka Object Space)
     """
-    def __init__(self, udpPort=4000, dataStore=None, routingTable=None, networkProtocol=None):
-        EntangledNode.__init__(self, udpPort, dataStore, routingTable, networkProtocol)
+    def __init__(self, id=None, udpPort=4000, dataStore=None, routingTable=None, networkProtocol=None):
+        EntangledNode.__init__(self, id, udpPort, dataStore, routingTable, networkProtocol)
         self._blockingGetRequests = {}
         self._blockingReadRequests = {}
 
@@ -76,6 +76,7 @@ class DistributedTupleSpacePeer(EntangledNode):
                 # ...now retrieve the contact for the target Node ID, and send it the tuple
                 #TODO: perhaps ping this node to make sure its still active
                 try:
+                    #TODO: verify whether using this method is still valid
                     contact = self._routingTable.getContact(listenerNodeID[0])
                 except ValueError:
                     df = self.iterativeFindNode(listenerNodeID[0])
@@ -103,7 +104,7 @@ class DistributedTupleSpacePeer(EntangledNode):
                 #df = self._addToInvertedIndexes(subtupleKeys, mainKey)
             return df
 
-        df = self._findKeyForTemplate(dTuple, True)
+        df = self._findKeyForTemplate(dTuple, listener=True)
         df.addCallback(checkIfListenerExists)
         return df
 

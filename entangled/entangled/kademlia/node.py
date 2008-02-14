@@ -38,7 +38,7 @@ class Node(object):
     In Entangled, all interactions with the Kademlia network by a client
     application is performed via this class (or a subclass). 
     """
-    def __init__(self, udpPort=4000, dataStore=None, routingTable=None, networkProtocol=None):
+    def __init__(self, id=None, udpPort=4000, dataStore=None, routingTable=None, networkProtocol=None):
         """
         @param dataStore: The data store to use. This must be class inheriting
                           from the C{DataStore} interface (or providing the
@@ -58,8 +58,12 @@ class Node(object):
                                 being transmitted.
         @type networkProtocol: entangled.kademlia.protocol.KademliaProtocol
         """
-        self.id = self._generateID()
+        if id != None:
+            self.id = id
+        else:
+            self.id = self._generateID()
         self.port = udpPort
+        self._listeningPort = None # object implementing Twisted IListeningPort
         # This will contain a deferred created when joining the network, to enable publishing/retrieving information from
         # the DHT as soon as the node is part of the network (add callbacks to this deferred if scheduling such operations
         # before the node has finished joining the network)
@@ -91,6 +95,7 @@ class Node(object):
 
     def __del__(self):
         self._persistState()
+        self._listeningPort.stopListening()
 
     def joinNetwork(self, knownNodeAddresses=None):
         """ Causes the Node to join the Kademlia network; normally, this
@@ -103,7 +108,7 @@ class Node(object):
         @type knownNodeAddresses: tuple
         """
         # Prepare the underlying Kademlia protocol
-        twisted.internet.reactor.listenUDP(self.port, self._protocol) #IGNORE:E1101
+        self._listeningPort = twisted.internet.reactor.listenUDP(self.port, self._protocol) #IGNORE:E1101
         # Create temporary contact information for the list of addresses of known nodes
         if knownNodeAddresses != None:
             bootstrapContacts = []
@@ -126,8 +131,6 @@ class Node(object):
         self._joinDeferred.addCallback(self._persistState)
         # Start refreshing k-buckets periodically, if necessary
         twisted.internet.reactor.callLater(constants.checkRefreshInterval, self._refreshNode) #IGNORE:E1101
-        #twisted.internet.reactor.run()
-
 
     def printContacts(self):
         print '\n\nNODE CONTACTS\n==============='
@@ -136,7 +139,6 @@ class Node(object):
                 print contact
         print '=================================='
         #twisted.internet.reactor.callLater(10, self.printContacts)
-
 
     def iterativeStore(self, key, value, originalPublisherID=None, age=0):
         """ The Kademlia store operation

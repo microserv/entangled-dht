@@ -5,18 +5,18 @@
 """ Entangled DHT and distributed tuple space
 
 The distributed hash table (DHT) used by Entangled is based on Kademlia,
-and be accessed by the "entangled.kademlia package", or by simply
-instantiating/subclassing the exposed KademliaNode in the main "entangled"
+and be accessed by the C{entangled.kademlia package}, or by simply
+instantiating/subclassing the exposed C{KademliaNode} in the main C{entangled}
 package.
 
 On top of this Kademlia node Entangled provides some extra functionality
-in the form of a "DELETE" RPC and keyword-based search operations; these
-functions are accessible via the EntangledNode class in the main "entangled"
-package.
+in the form of a "C{DELETE}" RPC and keyword-based search operations; these
+functions are accessible via the C{EntangledNode} class in the main
+C{entangled} package.
 
 The Entangled distributed tuple space is exposed as the
-DistributedTupleSpacePeer class, accessible via the main "entangled" package
-or its "dtuple" module.
+C{DistributedTupleSpacePeer} class, accessible via the main C{entangled}
+package or its C{dtuple} module.
 """
 
 from kademlia.node import Node as KademliaNode

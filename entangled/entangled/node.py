@@ -21,8 +21,8 @@ class EntangledNode(kademlia.node.Node):
     This is basically a Kademlia node, but with a few more (non-standard, but
     useful) RPCs defined.
     """
-    def __init__(self, udpPort=4000, dataStore=None, routingTable=None, networkProtocol=None):
-        kademlia.node.Node.__init__(self, udpPort, dataStore, routingTable, networkProtocol)
+    def __init__(self, id=None, udpPort=4000, dataStore=None, routingTable=None, networkProtocol=None):
+        kademlia.node.Node.__init__(self, id, udpPort, dataStore, routingTable, networkProtocol)
         self.invalidKeywords = []
         self.keywordSplitters = ['_', '.', '/']
 
