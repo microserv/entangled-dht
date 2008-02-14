@@ -7,6 +7,11 @@
 # The docstrings in this module contain epytext markup; API documentation
 # may be created by processing this file with epydoc: http://epydoc.sf.net
 
+class DecodeError(Exception):
+    """ Should be raised by an C{Encoding} implementation if decode operation
+    fails
+    """
+
 class Encoding(object):
     """ Interface for RPC message encoders/decoders
     
@@ -70,9 +75,12 @@ class Bencode(Encoding):
                 encodedDictItems += self.encode(key)
                 encodedDictItems += self.encode(data[key])
             return 'd%se' % encodedDictItems
-        elif type(data == float):
+        elif type(data) == float:
             # This (float data type) is a non-standard extension to the original Bencode algorithm 
             return 'f%fe' % data
+        elif data == None:
+            # This (None/NULL data type) is a non-standard extension to the original Bencode algorithm 
+            return 'n'
         else:
             raise TypeError, "Cannot bencode '%s' object" % type(data)
     
@@ -88,6 +96,8 @@ class Bencode(Encoding):
         @return: The decoded data, as a native Python type
         @rtype:  int, list, dict or str
         """
+        if len(data) == 0:
+            raise DecodeError, 'Cannot decode empty string'
         return self._decodeRecursive(data)[0]
     
     @staticmethod
@@ -118,9 +128,15 @@ class Bencode(Encoding):
             # This (float data type) is a non-standard extension to the original Bencode algorithm
             endPos = data[startIndex:].find('e')+startIndex
             return (float(data[startIndex+1:endPos]), endPos+1)
+        elif data[startIndex] == 'n':
+            # This (None/NULL data type) is a non-standard extension to the original Bencode algorithm 
+            return (None, startIndex+1)
         else:
             splitPos = data[startIndex:].find(':')+startIndex
-            length = int(data[startIndex:splitPos])
+            try:
+                length = int(data[startIndex:splitPos])
+            except ValueError, e:
+                raise DecodeError, e
             startIndex = splitPos+1
             endPos = startIndex+length
             bytes = data[startIndex:endPos]
