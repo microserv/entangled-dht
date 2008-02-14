@@ -7,6 +7,8 @@
 # The docstrings in this module contain epytext markup; API documentation
 # may be created by processing this file with epydoc: http://epydoc.sf.net
 
+import time
+
 from twisted.internet import protocol, defer
 from twisted.python import failure
 import twisted.internet.reactor
@@ -25,8 +27,8 @@ class TimeoutError(Exception):
 class KademliaProtocol(protocol.DatagramProtocol):
     """ Implements all low-level network-related functions of a Kademlia node """
     msgSizeLimit = constants.udpDatagramMaxSize-26
-    maxToSendDelay = 10**-3
-    minToSendDelay = 10**-5
+    maxToSendDelay = 0.05#10**-3
+    minToSendDelay = 0.01#10**-5
 
     def __init__(self, node, msgEncoder=encoding.Bencode(), msgTranslator=msgformat.DefaultFormat()):
         self._node = node
@@ -35,10 +37,12 @@ class KademliaProtocol(protocol.DatagramProtocol):
         self._sentMessages = {}
         self._partialMessages = {}
         self._partialMessagesProgress = {}
+        self._next = 0
+        self._callLaterList = {}
 
     def sendRPC(self, contact, method, args, rawResponse=False):
         """ Sends an RPC to the specified contact
-        
+
         @param contact: The contact (remote node) to send the RPC to
         @type contact: kademlia.contacts.Contact
         @param method: The name of remote method to invoke
@@ -80,7 +84,7 @@ class KademliaProtocol(protocol.DatagramProtocol):
 
     def datagramReceived(self, datagram, address):
         """ Handles and parses incoming RPC messages (and responses)
-        
+
         @note: This is automatically called by Twisted when the protocol
                receives a UDP datagram
         """
@@ -101,10 +105,15 @@ class KademliaProtocol(protocol.DatagramProtocol):
                 del self._partialMessages[msgID]
             else:
                 return
-        msgPrimitive = self._encoder.decode(datagram)
+        try:
+            msgPrimitive = self._encoder.decode(datagram)
+        except encoding.DecodeError:
+            # We received some rubbish here
+            return
+        
         message = self._translator.fromPrimitive(msgPrimitive)
-
         remoteContact = Contact(message.nodeID, address[0], address[1], self)
+        
         # Refresh the remote node's details in the local node's k-buckets
         self._node.addContact(remoteContact)
 
@@ -180,11 +189,29 @@ class KademliaProtocol(protocol.DatagramProtocol):
                 packetData = data[startPos:startPos+self.msgSizeLimit]
                 encSeqNumber = chr(seqNumber >> 8) + chr(seqNumber & 0xff)
                 txData = '\x00%s%s%s\x00%s' % (encTotalPackets, encSeqNumber, rpcID, packetData)
-                reactor.callLater(self.maxToSendDelay*seqNumber+self.minToSendDelay, self.transport.write, txData, address) #IGNORE:E1101
+                self._sendNext(txData, address)
+
                 startPos += self.msgSizeLimit
                 seqNumber += 1
         else:
-            self.transport.write(data, address)
+            self._sendNext(data, address)
+
+    def _sendNext(self, txData, address):
+        """ Send the next UDP packet """
+        ts = time.time()
+        delay = 0
+        if ts >= self._next:
+            delay = self.minToSendDelay
+            self._next = ts + self.minToSendDelay
+        else:
+            delay = (self._next-ts) + self.maxToSendDelay
+            self._next += self.maxToSendDelay
+        if self.transport:
+            laterCall = reactor.callLater(delay, self.transport.write, txData, address)
+            for key in self._callLaterList.keys():
+                if key <= ts:
+                    del self._callLaterList[key]
+            self._callLaterList[self._next] = laterCall
 
     def _sendResponse(self, contact, rpcID, response):
         """ Send a RPC response to the specified contact
@@ -222,7 +249,7 @@ class KademliaProtocol(protocol.DatagramProtocol):
             try:
                 try:
                     # Try to pass the sender's node id to the function...
-                    result = func(*args, **{'_rpcNodeID': senderContact.id})
+                    result = func(*args, **{'_rpcNodeID': senderContact.id, '_rpcNodeContact': senderContact})
                 except TypeError:
                     # ...or simply call it if that fails
                     result = func(*args)
@@ -261,3 +288,18 @@ class KademliaProtocol(protocol.DatagramProtocol):
         else:
             # This should never be reached
             print "ERROR: deferred timed out, but is not present in sent messages list!"
+
+    def stopProtocol(self):
+        """ Called when the transport is disconnected.
+        
+        Will only be called once, after all ports are disconnected.
+        """
+        for key in self._callLaterList.keys():
+            try:
+                if key > time.time():
+                    self._callLaterList[key].cancel()
+            except Exception, e:
+                print e
+            del self._callLaterList[key]
+            #TODO: test: do we really need the reactor.iterate() call?
+            reactor.iterate()
