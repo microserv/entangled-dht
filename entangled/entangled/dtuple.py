@@ -7,7 +7,7 @@
 # The docstrings in this module contain epytext markup; API documentation
 # may be created by processing this file with epydoc: http://epydoc.sf.net
 
-import cPickle, hashlib
+import cPickle, hashlib, random
 
 from twisted.internet import defer
 
@@ -109,7 +109,7 @@ class DistributedTupleSpacePeer(EntangledNode):
         return df
 
     def get(self, template):
-        """ Reads and removes (consumes) a tuple from the tuple space.
+        """ Reads and removes (consumes) a tuple from the tuple space (blocking)
         
         @type template: tuple
         
@@ -139,74 +139,10 @@ class DistributedTupleSpacePeer(EntangledNode):
 
         df = self.getIfExists(template)
         df.addCallback(addListener)
-        return outerDf  
-    
-#    def get(self, template):
-#        """ Reads and removes (consumes) a tuple from the tuple space.
-#        
-#        @type template: tuple
-#        
-#        @note: This method is generally called "in" in tuple space literature,
-#               but is renamed to "get" in this implementation to avoid
-#               a conflict with the Python C{in} keyword.
-#        """
-#        outerDf = defer.Deferred()
-#        
-#        mainTupleKey = []
-#        def retrieveTupleValue(tupleKey):
-#            if tupleKey == None:
-#                # No tuple was found
-#                return None
-#            else:
-#                mainTupleKey.append(tupleKey)
-#                #TODO: kademlia is going to replicate the un-updated inverted index; stop that from happening!!
-#                _df = self.iterativeFindValue(tupleKey)
-#                _df.addCallback(returnTuple)
-#                return _df
-#          
-#        def returnTuple(value):
-#            if type(value) == dict:
-#                # tuple was found
-#                tupleValue = value[mainTupleKey[0]]
-#                # Remove the tuple itself from the DHT
-#                self.iterativeDelete(mainTupleKey[0])
-#                # Un-serialize the tuple...
-#                dTuple = cPickle.loads(tupleValue)
-#                # ...now remove all inverted index entries of the tuple, and return
-#                subtupleKeys = self._keywordHashesFromTuple(dTuple)
-#                self._removeFromInvertedIndexes(subtupleKeys, mainTupleKey[0])
-#                return dTuple
-#            else:
-#                # tuple was not found
-#                return None
-#                
-#                
-#        def addListener(result):
-#            if result == None:
-#                # The tuple does not exist (yet) - add a listener for it
-#                h = hashlib.sha1()
-#                listenerKey = 'listener:' + cPickle.dumps(template)
-#                h.update(listenerKey)
-#                listenerKey = h.digest()
-#                # Extract "listener keywords" from the template
-#                subtupleKeys = self._keywordHashesFromTemplate(template, True)
-#                # ...now write the listener tuple(s) to the DHT Tuple Space
-#                if subtupleKeys == None:
-#                    # Deterministic template; all values are fully specified   
-#                    self.iterativeStore(listenerKey, self.id + listenerKey)
-#                else:
-#                    self._addToInvertedIndexes(subtupleKeys, self.id + listenerKey)
-#                self._blockingGetRequests[listenerKey] = outerDf
-#            else:
-#                outerDf.callback(result)
-#
-#        df = self._findKeyForTemplate(template)
-#        df.addCallback(retrieveTupleValue)
-#        df.addCallback(addListener)
-#        return outerDf
-    
+        return outerDf
+
     def getIfExists(self, template, getListenerTuple=False):
-        """ Reads and removes (consumes) a tuple from the tuple space.
+        """ Reads and removes (consumes) a tuple from the tuple space (non-blocking)
         
         @type template: tuple
         
@@ -257,8 +193,8 @@ class DistributedTupleSpacePeer(EntangledNode):
         
         return outerDf
     
-    def read(self, template):
-        """ Non-destructively reads a tuple in the tuple space.
+    def read(self, template, numberOfResults=1):
+        """ Non-destructively reads a tuple in the tuple space (blocking)
         
         This operation is similar to "get" (or "in") in that the peer builds a
         template and waits for a matching tuple in the tuple space. Upon
@@ -266,6 +202,16 @@ class DistributedTupleSpacePeer(EntangledNode):
         tuple in the tuple space.
         
         @note: This method is named "rd" in some other implementations.
+        
+        @param numberOfResults: The maximum number of matching tuples to return.
+                                If set to 1 (default), return the tuple itself,
+                                otherwise return a list of tuples. If set to 0
+                                or lower, return all results.
+        @type numberOfResults: int
+        
+        @return: a matching tuple, or list of tuples (if C{numberOfResults} is
+                 not set to 1, or None if no matching tuples were found
+        @rtype: twisted.internet.defer.Deferred
         """
         outerDf = defer.Deferred()
         def addListener(result):
@@ -283,16 +229,17 @@ class DistributedTupleSpacePeer(EntangledNode):
                     self.iterativeStore(listenerKey, self.id + listenerKey)
                 else:
                     self._addToInvertedIndexes(subtupleKeys, self.id + listenerKey)
-                self._blockingReadRequests[listenerKey] = outerDf
+                # Store the <numberOfResults> parameter as well, in order to return the correct type later (list of tuples vs single tuple)
+                self._blockingReadRequests[listenerKey] = (outerDf, numberOfResults)
             else:
                 outerDf.callback(result)
         
-        df = self.readIfExists(template)
+        df = self.readIfExists(template, numberOfResults=numberOfResults)
         df.addCallback(addListener)
         return outerDf
     
-    def readIfExists(self, template):
-        """ Non-destructively reads a tuple in the tuple space.
+    def readIfExists(self, template, numberOfResults=1):
+        """ Non-destructively reads a tuple in the tuple space (non-blocking)
         
         This operation is similar to "get" (or "in") in that the peer builds a
         template and waits for a matching tuple in the tuple space. Upon
@@ -300,35 +247,82 @@ class DistributedTupleSpacePeer(EntangledNode):
         tuple in the tuple space.
         
         @note: This method is named "rd" in some other implementations.
+        
+        @param numberOfResults: The maximum number of matching tuples to return.
+                                If set to 1 (default), return the tuple itself,
+                                otherwise return a list of tuples. If set to 0
+                                or lower, return all results.
+        @type numberOfResults: int
+        
+        @return: a matching tuple, or list of tuples (if C{numberOfResults} is
+                 not set to 1, or None if no matching tuples were found
+        @rtype: twisted.internet.defer.Deferred
         """
         outerDf = defer.Deferred()
-        mainTupleKey = []
-        def retrieveTupleValue(tupleKey):
-            if tupleKey == None:
-                # No tuple was found
-                outerDf.callback(None)
-            else:
-                mainTupleKey.append(tupleKey)
-                _df = self.iterativeFindValue(tupleKey)
-                _df.addCallback(returnTuple)
-            
+        mainTuplesKeys = [] # list of key IDs that point to matching tuples
+        mainTuplesKeysIndex = [-1]
+        returnValue = []
+
         def returnTuple(value):
             if type(value) == dict:
-                # tuple was found
-                tupleValue = value[mainTupleKey[0]]
+                # Tuple was found
+                tupleValue = value[mainTuplesKeys[mainTuplesKeysIndex[0]]]
                 # Un-serialize the tuple
                 dTuple = cPickle.loads(tupleValue)
-                outerDf.callback(dTuple)
+                returnValue.append(dTuple)
+            if mainTuplesKeysIndex[0] >= len(mainTuplesKeys)-1 or len(returnValue) == numberOfResults:
+                if len(returnValue) > 0:
+                    if numberOfResults == 1:
+                        # return tuple only (not in a list)
+                        outerDf.callback(returnValue[0])
+                    else:
+                        # return all requested results as a list
+                        outerDf.callback(returnValue)
+                else:
+                    # No matching tuples were found
+                    outerDf.callback(None)
             else:
-                # tuple was not found
-                outerDf.callback(None)
+                # get the next found tuple
+                getNextTuple()
 
-        df = self._findKeyForTemplate(template)
+        def retrieveTupleValue(tupleKeys):
+            if tupleKeys == None:
+                # No matching tuples were found
+                outerDf.callback(None)
+            else:
+                if numberOfResults == 1:
+                    mainTuplesKeys.append(tupleKeys)
+                else:
+                    mainTuplesKeys.extend(tupleKeys)
+                print 'mainTuplesKeys:',mainTuplesKeys
+                getNextTuple()
+                
+        def getNextTuple():
+            """ Retrieves the next tuple from the C{mainTuplesKeys} list """
+            print 'getNextTuple() called'
+            mainTuplesKeysIndex[0] += 1
+            _df = self.iterativeFindValue(mainTuplesKeys[mainTuplesKeysIndex[0]])
+            _df.addCallback(returnTuple)
+
+        df = self._findKeyForTemplate(template, oneResultOnly=(numberOfResults==1))
         df.addCallback(retrieveTupleValue)
         return outerDf
 
-    def _findKeyForTemplate(self, template, listener=False):
-        """ Main search algorithm for C{get()} and C{read()} """
+    def _findKeyForTemplate(self, template, listener=False, oneResultOnly=True):
+        """ Main search algorithm for C{get()} and C{read()}
+        
+        @param oneResultOnly: Controls whether one tuple or a list of matching
+                              tuples are returned. If C{True} (default),
+                              return only one tuple; if C{False}, return all 
+                              matching tuples in a list.
+        @type oneResultOnly: bool
+        
+        @return: Immediately returns a deferred object which will be a matching
+                 tuple (or list of tuples, depending on the value of
+                 C{firstResultOnly}), or C{None} if no matching tuples were
+                 found.
+        @rtype: twisted.internet.defer.Deferred
+        """
         if listener == True:
             prependStr = 'listener:'
         else:
@@ -433,8 +427,15 @@ class DistributedTupleSpacePeer(EntangledNode):
                 else:
                     df.addCallback(filterResult)
             else:
-                # We're done. Let the caller of the parent method know, and return the key of the first qualifying tuple in the list of results
-                outerDf.callback(filteredResults[0])
+                # We're done. Let the caller of the parent method know,
+                # and return the key of a random qualifying tuple in the list of results
+                # (or the entire list of keys, depending on the value of <firstResultOnly>)
+                if oneResultOnly == True:
+                    print '   _findKeyForTemplate(): returning single random result'
+                    outerDf.callback( filteredResults[random.randint(0, len(filteredResults)-1)] )
+                else:
+                    print '   _findKeyForTemplate(): return result list'
+                    outerDf.callback(filteredResults)
         
         if subtupleKeys == None:
             # The template is deterministic; thus we can retrieve the corresponding tuple directly
@@ -526,8 +527,12 @@ class DistributedTupleSpacePeer(EntangledNode):
             return 'get'
         elif listenerKey in self._blockingReadRequests:
             dTuple = cPickle.loads(pickledTuple)
-            df = self._blockingReadRequests[listenerKey]
-            df.callback(dTuple)
+            df, numberOfResults = self._blockingReadRequests[listenerKey]
+            # If the <numberOfResults> paramter in the original read() call was != 1, the caller is expecting a list, not a single tuple
+            if numberOfResults == 1:
+                df.callback(dTuple)
+            else:
+                df.callback([dTuple])
             return 'read'
         
 
