@@ -1,3 +1,7 @@
+* Francois Aucamp <faucamp@csir.co.za> - 0.2
+- Added several robustness patches by Haiyang Ma
+- Several misc bugfixes
+
 * Mon Feb 04 2008 Francois Aucamp <faucamp@csir.co.za> - 0.1
 - New release: 0.1
 - Added "build_apidocs" command to setup.py to allow creation of API

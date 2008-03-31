@@ -185,13 +185,17 @@ class EntangledNode(kademlia.node.Node):
                 # An index for this keyword exists; remove our value from it
                 index = results[kwKey]
                 #TODO: this might not actually be an index, but a value... do some name-mangling to avoid this
-                #TODO: this might throw a ValueError; handle it
-                index.remove(indexLink)
-                # Remove the index completely if it is empty, otherwise put it back
-                if len(index) > 0:
-                    df = self.iterativeStore(kwKey, index)
+                try:
+                    index.remove(indexLink)
+                except ValueError:
+                    df = defer.Deferred()
+                    df.callback(None)
                 else:
-                    df = self.iterativeDelete(kwKey)
+                    # Remove the index completely if it is empty, otherwise put it back
+                    if len(index) > 0:
+                        df = self.iterativeStore(kwKey, index)
+                    else:
+                        df = self.iterativeDelete(kwKey)
                 df.addCallback(findNextKeyword)
             else:
                 # No index exists for this keyword; skip it

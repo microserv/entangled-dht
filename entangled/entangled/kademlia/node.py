@@ -38,7 +38,7 @@ class Node(object):
     In Entangled, all interactions with the Kademlia network by a client
     application is performed via this class (or a subclass). 
     """
-    def __init__(self, id=None, udpPort=4000, dataStore=None, routingTable=None, networkProtocol=None):
+    def __init__(self, id=None, udpPort=4000, dataStore=None, routingTableClass=None, networkProtocol=None):
         """
         @param dataStore: The data store to use. This must be class inheriting
                           from the C{DataStore} interface (or providing the
@@ -46,11 +46,14 @@ class Node(object):
                           internally is up to the implementation of that data
                           store.
         @type dataStore: entangled.kademlia.datastore.DataStore
-        @param routingTable: The routing table to use. Since there exists some
-                             ambiguity as to how the routing table should be
+        @param routingTable: The routing table class to use. Since there exists
+                             some ambiguity as to how the routing table should be
                              implemented in Kademlia, a different routing table
                              may be used, as long as the appropriate API is
-                             exposed.
+                             exposed. This should be a class, not an object,
+                             in order to allow the Node to pass an
+                             auto-generated node ID to the routingtable object
+                             upon instantiation (if necessary). 
         @type routingTable: entangled.kademlia.routingtable.RoutingTable
         @param networkProtocol: The network protocol to use. This can be
                                 overridden from the default to (for example)
@@ -72,8 +75,10 @@ class Node(object):
         #self._buckets = []
         #for i in range(160):
         #    self._buckets.append(kbucket.KBucket())
-        if routingTable == None:
+        if routingTableClass == None:
             self._routingTable = routingtable.OptimizedTreeRoutingTable(self.id)
+        else:
+            self._routingTable = routingTableClass(self.id)
 
         # Initialize this node's network access mechanisms
         if networkProtocol == None:
@@ -275,7 +280,8 @@ class Node(object):
         @param contactID: The contact ID of the required Contact object
         @type contactID: str
                  
-        @return: Contact object of remote node with the specified node ID
+        @return: Contact object of remote node with the specified node ID,
+                 or None if the contact was not found
         @rtype: twisted.internet.defer.Deferred
         """
         try:
@@ -503,9 +509,10 @@ class Node(object):
                     else:
                         findValueResult['closestNodeNoValue'] = aContact
                 for contactTriple in result:
-                    testContact = Contact(contactTriple[0], contactTriple[1], contactTriple[2], self._protocol)
-                    if testContact not in shortlist:
-                        shortlist.append(testContact)
+                    if isinstance(contactTriple, (list, tuple)) and len(contactTriple) == 3:
+                        testContact = Contact(contactTriple[0], contactTriple[1], contactTriple[2], self._protocol)
+                        if testContact not in shortlist:
+                            shortlist.append(testContact)
             return responseMsg.nodeID
 
         def removeFromShortlist(failure):
